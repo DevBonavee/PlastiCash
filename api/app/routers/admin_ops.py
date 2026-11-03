@@ -1,8 +1,8 @@
 """Ops portal API, part 2: stats, new price versions, users and collectors, balance adjustments, stock and bales.
 ADMIN only through the router-level guard, like routers/admin.py (required test 16)."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -20,11 +20,12 @@ from app.auth import AdminProfile, require_admin
 from app.db import get_session
 from app.errors import ApiError
 from app.models import (
-    AccountType, Bale, BaleStatus, LedgerEntry, Material, Pickup, PickupChannel, PickupStatus, Price, Profile, Role,
+    AccountType, Bale, BaleStatus, GuardianConsent, LedgerEntry, Material, Pickup, PickupChannel, PickupStatus, Price,
+    Profile, Role,
 )
-from app.phone import normalize_ng_phone
+from app.phone import PHONE_ERROR, normalize_ng_phone
 from app.schemas import LedgerEntryOut, PriceOut, display_name, points
-from app.services import ledger, stats, stock, supabase_admin
+from app.services import guardian, ledger, stats, stock, supabase_admin
 from app.ratelimit import HOUR, rate_limit
 from app.redis_client import cache_delete
 from app.routers.prices import PRICES_CACHE_KEY
@@ -129,14 +130,35 @@ def _row(p: Profile, balance: int) -> UserRow:
         id=p.id, role=p.role, account_type=p.account_type,
         name=(display_name(p) if p.role == Role.USER else "") or p.full_name, full_name=p.full_name,
         email=p.email, phone=p.phone, area=p.area, is_active=p.is_active, verified_picker=p.verified_picker,
-        balance_kobo=balance, created_at=p.created_at,
+        balance_kobo=balance, created_at=p.created_at, is_minor=p.is_minor,
+        guardian_consent="EXPIRED" if guardian.link_expired(p) else p.guardian_consent_status.value,
     )
 
 
 @router.get("/users", response_model=list[UserRow])
-async def users(session: SessionDep, role: Role | None = None, q: str | None = None) -> list[UserRow]:
-    """Newest first, up to 200; `q` matches name, organization, email or phone."""
+async def users(
+    session: SessionDep,
+    role: Role | None = None,
+    q: str | None = None,
+    minor: bool | None = None,
+    consent: Literal["PENDING", "GRANTED", "DECLINED", "EXPIRED"] | None = None,
+) -> list[UserRow]:
+    """Newest first, up to 200; `q` matches name, organization, email or phone. `minor=true` lists under-18s;
+    `consent` filters minors by their guardian's answer (EXPIRED = still pending, link no longer works)."""
     query = select(Profile).order_by(Profile.created_at.desc()).limit(200)
+    if minor is not None:
+        query = query.where(Profile.is_minor == minor)
+    if consent is not None:
+        now = datetime.now(UTC)
+        query = query.where(Profile.is_minor)
+        if consent == "EXPIRED":
+            query = query.where(Profile.guardian_consent_status == GuardianConsent.PENDING,
+                                or_(Profile.guardian_token_expires_at.is_(None), Profile.guardian_token_expires_at <= now))
+        elif consent == "PENDING":
+            query = query.where(Profile.guardian_consent_status == GuardianConsent.PENDING,
+                                Profile.guardian_token_expires_at > now)
+        else:
+            query = query.where(Profile.guardian_consent_status == GuardianConsent(consent))
     if role is not None:
         query = query.where(Profile.role == role)
     if q and q.strip():
@@ -183,13 +205,13 @@ async def create_collector(body: CollectorIn, session: SessionDep) -> UserRow:
     phone = normalize_ng_phone(body.phone)
     errors = []
     if phone is None:
-        errors.append({"field": "phone", "message": "Enter a Nigerian mobile number, e.g. 0803 123 4567"})
+        errors.append({"field": "phone", "message": PHONE_ERROR})
     if body.area is not None and body.area not in AREAS:
         errors.append({"field": "area", "message": "Choose an area from the list."})
     if errors:
         raise ApiError(422, "VALIDATION_ERROR", "Check the highlighted fields.", {"errors": errors})
     if (await session.exec(select(Profile.id).where(Profile.phone == phone))).first():
-        raise ApiError(409, "PHONE_TAKEN", "Someone already uses this phone number.",
+        raise ApiError(409, "PHONE_TAKEN", "This number is already registered",
                        {"errors": [{"field": "phone", "message": "Already used by another account."}]})
 
     email = body.email.lower()
@@ -202,7 +224,7 @@ async def create_collector(body: CollectorIn, session: SessionDep) -> UserRow:
     except IntegrityError as error:
         await session.rollback()
         await supabase_admin.delete_user(user_id)
-        raise ApiError(409, "PHONE_TAKEN", "Someone already uses this phone number.") from error
+        raise ApiError(409, "PHONE_TAKEN", "This number is already registered") from error
     await session.refresh(profile)
     return _row(profile, 0)
 

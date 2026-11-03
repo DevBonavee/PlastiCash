@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Landmark } from "lucide-react";
+import { BadgeCheck, Landmark, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -16,6 +16,8 @@ import { dateTime, money, naira, pts } from "@/lib/format";
 import type { Me } from "@/lib/me";
 import type { LedgerEntry, Wallet, Withdrawal } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { track } from "@/lib/analytics";
+import { OFFLINE_ACTION, useOnline } from "@/lib/pwa";
 
 const MIN_KOBO = 500_000;
 const FILTERS = { all: "All", earned: "Earned", withdrawals: "Withdrawals" } as const;
@@ -173,6 +175,8 @@ function WithdrawForm({ balance, bank }: { balance: number; bank: Me["bank"] }) 
   const [naira_, setNaira] = useState("");
   const [asking, setAsking] = useState(false);
   const [pending, setPending] = useState(false);
+  // Withdrawals are never queued for later: offline, the button is off.
+  const online = useOnline();
   const amount = Math.round(Number(naira_ || 0) * 100);
   const error =
     !naira_ ? null : amount < MIN_KOBO ? "The minimum is ₦5,000." : amount > balance ? "That's more than your balance." : null;
@@ -184,6 +188,7 @@ function WithdrawForm({ balance, bank }: { balance: number; bank: Me["bank"] }) 
     setPending(false);
     setAsking(false);
     if (!result.ok) return toast.error(result.error.message);
+    track("withdrawal_requested");
     toast.success(`Withdrawal of ${naira(amount)} requested. We'll send it after approval.`);
     setNaira("");
     router.refresh();
@@ -222,9 +227,14 @@ function WithdrawForm({ balance, bank }: { balance: number; bank: Me["bank"] }) 
             />
             <p className={cn("text-sm", error ? "text-bad" : "text-muted-foreground")}>{error ?? "Minimum ₦5,000."}</p>
           </div>
-          <Btn variant="accent" block disabled={!naira_ || !!error} onClick={() => setAsking(true)}>
+          <Btn variant="accent" block disabled={!naira_ || !!error || !online} onClick={() => setAsking(true)}>
             Withdraw
           </Btn>
+          {!online && (
+            <p role="status" className="flex items-center gap-2 text-sm font-semibold text-warn">
+              <WifiOff className="size-4" aria-hidden /> {OFFLINE_ACTION}
+            </p>
+          )}
           <ConfirmDialog
             open={asking}
             onOpenChange={setAsking}

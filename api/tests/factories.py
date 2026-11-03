@@ -18,7 +18,7 @@ async def make_user(
         account_type=AccountType.INDIVIDUAL if role == Role.USER else None,
         is_active=is_active,
         full_name=name,
-        phone=f"+2348{uuid4().int % 10**9:09d}",
+        phone=f"+23480{uuid4().int % 10**8:08d}",
         email=f"{name.lower()}@example.com",
     )
     session.add(user)

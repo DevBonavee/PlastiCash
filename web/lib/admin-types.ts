@@ -45,7 +45,13 @@ export type PriceVersion = {
   set_by: string | null;
 };
 
-export type AdminWithdrawal = Withdrawal & { user_id: string; user_name: string; reviewed_at: string | null };
+export type AdminWithdrawal = Withdrawal & {
+  user_id: string;
+  user_name: string;
+  reviewed_at: string | null;
+  // Minors: the bank's account name doesn't look like the guardian's. Check before approving.
+  guardian_name_mismatch: boolean;
+};
 
 export type UserRow = {
   id: string;
@@ -60,6 +66,8 @@ export type UserRow = {
   verified_picker: boolean;
   balance_kobo: number;
   created_at: string;
+  is_minor: boolean;
+  guardian_consent: "NOT_REQUIRED" | "PENDING" | "GRANTED" | "DECLINED" | "EXPIRED";
 };
 
 export type BaleStatus = "IN_STORE" | "PROCESSED" | "SOLD";

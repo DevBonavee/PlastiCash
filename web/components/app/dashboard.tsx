@@ -36,13 +36,16 @@ export function WalletCard({ wallet }: { wallet: Wallet }) {
 
 export function RequestCta() {
   return (
-    <Card className="flex-row items-center gap-4 border-warn-line bg-cream">
-      <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-amber text-heading">
-        <Truck className="size-6" aria-hidden />
-      </span>
-      <div className="min-w-0 flex-1">
-        <b className="font-display text-lg text-heading">Got another sack ready?</b>
-        <p className="text-[13px] text-muted-foreground">Door pickup from 50 kg, or drop it at the hub.</p>
+    // Wraps in the dashboard's narrow column: the button drops under the icon and text instead of squeezing them.
+    <Card className="flex-row flex-wrap items-center gap-4 border-warn-line bg-cream">
+      <div className="flex min-w-0 flex-1 basis-64 items-center gap-4">
+        <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-amber text-heading">
+          <Truck className="size-6" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <b className="font-display text-lg text-heading">Got another sack ready?</b>
+          <p className="text-[13px] text-muted-foreground">Door pickup from 50 kg, or drop it at the hub.</p>
+        </div>
       </div>
       <BtnLink href="/app/request" className="hidden sm:inline-flex">
         Request a pickup

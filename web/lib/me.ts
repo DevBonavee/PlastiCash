@@ -13,11 +13,22 @@ export type Me = {
   phone: string;
   address: string | null;
   area: string | null;
+  lat: number | null;
+  lng: number | null;
   org_name: string | null;
   org_type: string | null;
   cac_number: string | null;
   verified_picker: boolean;
   bank: { bank_name: string; account_name: string; account_number_last4: string } | null;
+  // 13 to 17 (NDPA 2023): locked until a parent or guardian consents.
+  marketing_opt_in: boolean;
+  is_minor: boolean;
+  guardian: {
+    status: "PENDING" | "GRANTED" | "DECLINED";
+    name: string | null;
+    link_expired: boolean;
+    resends_left: number;
+  } | null;
 };
 
 // Where each role lands. Area layouts send anyone with the wrong role to their own area (UX only;

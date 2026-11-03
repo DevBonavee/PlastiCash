@@ -12,7 +12,7 @@ from app.errors import ApiError
 from app.models import Pickup, PickupStatus, Profile, Role
 from app.pickup_schemas import CancelIn, DisputeIn, PickupCreate, UploadSignatureIn, UserPickupOut
 from app.schemas import display_name
-from app.services import cloudinary, pickups, push
+from app.services import cloudinary, guardian, pickups, push
 from app.services.pickup_state import transition
 from app.ratelimit import DAY, HOUR, rate_limit
 
@@ -52,6 +52,7 @@ async def upload_signature(body: UploadSignatureIn, me: CurrentProfile) -> dict:
 async def request_pickup(
     body: PickupCreate, me: UserProfile, session: SessionDep, background: BackgroundTasks
 ) -> UserPickupOut:
+    guardian.require_consent(me)
     pickup = await pickups.create_request(session, me, body)
     await session.commit()
     # Tell the admins' phones after the response is sent, so the customer never waits for it (or fails because of it).

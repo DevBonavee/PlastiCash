@@ -3,7 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.errors import install_error_handlers
-from app.routers import admin, admin_content, admin_ops, collector, content, jobs, me, pickups, prices, push, wallet, webhooks
+from app.routers import (
+    admin, admin_content, admin_ops, collector, content, guardian, jobs, me, pickups, prices, push, unsubscribe, wallet,
+    webhooks,
+)
 
 docs = get_settings().api_docs
 app = FastAPI(
@@ -60,4 +63,6 @@ api.include_router(jobs.router)
 api.include_router(push.router)
 api.include_router(content.router)
 api.include_router(admin_content.router)
+api.include_router(guardian.router)
+api.include_router(unsubscribe.router)
 app.include_router(api)

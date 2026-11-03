@@ -1,0 +1,42 @@
+# Processing register (NDPA 2023)
+
+One row per way PlastiCash collects or uses personal data. The public privacy notice at `/privacy`
+(`web/app/privacy/page.tsx`, data in `web/lib/privacy-register.ts`) is built from this table, so change both together.
+Any new feature that collects or uses personal data adds or updates a row here.
+
+Lawful bases are those in the Nigeria Data Protection Act 2023, section 25(1): consent, contract, legal obligation,
+vital interest, public task, legitimate interest. "Contract" means the data is needed to give the person the service
+they signed up for (pickups and payment).
+
+Processors: Supabase (database, login, realtime), Render (API hosting), Vercel (website hosting), Paystack (bank checks
+and transfers), Cloudinary (photos), Termii (SMS), Resend (email), PostHog (analytics, only with consent).
+
+Last reviewed: 3 Nov 2026.
+
+| # | Activity | Data collected | Purpose | Lawful basis (s.25) | Shared with | Where it's stored | How long we keep it | How to object or withdraw |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Account and login | Email, password (Supabase stores only a hash), name, account type, organization name, type and CAC number | Create and secure the account; greet the user; ESG reports for organizations | Contract | Supabase (login and database), Render (API), Vercel (website) | Supabase, EU (Ireland, eu-west-1) | While the account is open. TODO: confirm with Kenzy how long after closing (there is no self-service delete yet) | Edit in Settings; ask EcoCyclers to close the account |
+| 2 | Phone number | Nigerian mobile number (+234…) | Text pickup codes and reminders; find the customer at hub walk-ins; stop duplicate accounts | Contract | Supabase, Render, Termii (to send SMS) | Supabase, EU | While the account is open. TODO: confirm with Kenzy | Change it in Settings. It can't be removed while the account is open, because codes go to it |
+| 3 | Address and map pin | Street address, area, optional map pin on the profile and on each pickup | Send a collector to the right gate; group requests by area | Contract | Supabase, Render. The map loads tiles from OpenStreetMap, which sees roughly which area is on screen but not the address | Supabase, EU | Profile: until changed. Pickup copies: TODO: confirm with Kenzy (kept with pickup records) | Change or remove the pin in the dashboard address bar |
+| 4 | Date of birth and guardian details | Date of birth (individuals); for 13 to 17: guardian's name, phone and email, consent answer and time, a hash of the consent link | Check age (no accounts under 13); get and record a parent or guardian's consent for 13 to 17; pay minors only into the guardian's account | Legal obligation (NDPA s.31, children's data) | Supabase, Render, Resend (consent email), Termii (consent SMS when on) | Supabase, EU | Date of birth: while the account is open. Consent record: TODO: confirm with Kenzy. Link hash: until used; links expire after 7 days | Guardian: "I don't consent" on the link, or ask EcoCyclers to withdraw consent later (the account is locked again) |
+| 5 | Pickup photos | Photo of the plastic (user), photo of the scale and load (collector), dispute photo | Estimate the load; check the weight; settle disputes | Contract; legitimate interest (evidence in a dispute) | Cloudinary (storage and resizing), Supabase (the photo's address) | Cloudinary. TODO: confirm with Kenzy which Cloudinary region the account uses | TODO: confirm with Kenzy | Don't add the optional request photo; ask EcoCyclers to delete photos of closed pickups |
+| 6 | Weights and payments | Materials, weights, deductions and reasons, prices, points earned, ledger entries, withdrawals | Pay the right amount; show the wallet; stock and export records | Contract; legal obligation (financial records) | Supabase, Render | Supabase, EU | TODO: confirm with Kenzy (financial records are often kept 6 years or more) | Dispute a weight within 48 hours in the app; ask EcoCyclers for a copy |
+| 7 | Bank details and Paystack transfers | Bank, account number, account name returned by the bank, Paystack recipient and transfer codes | Check the account is real and in the right name; send withdrawals | Contract; legal obligation (payment records) | Paystack | Supabase, EU; Paystack (Nigeria) | Saved details: until changed. Withdrawal snapshots: TODO: confirm with Kenzy | Change the bank account in Settings |
+| 8 | SMS codes via Termii | Phone number, 6-digit code, weight and amount in the message; we store only a hash of the code | Let the user confirm a weight at the door; remind them before auto-confirm; guardian consent link | Contract | Termii | Code hash in Supabase, EU; message at Termii (TODO: confirm with Kenzy where Termii stores messages) | Code hash: replaced on resend; codes expire after 30 minutes. Termii's copy: TODO: confirm with Kenzy | Confirm in the app instead of by code |
+| 9 | Collector live location | Collector's latest position while a pickup is EN_ROUTE | Show the customer the collector coming | Legitimate interest (customer safety and planning); contract with the collector. TODO: confirm with Kenzy whether collectors are employees or contractors | Supabase (Realtime to that one customer), Render | Supabase, EU, on that pickup only | Only the latest point; cleared when the collector weighs the load | Collectors: the location is sent only while the pickup page is open after pressing Start |
+| 10 | ESG reports for organizations | Organization name, kg by material, CO₂ saved, pickup count | Monthly or yearly recycling report for the organization | Contract | Render (makes the PDF) | Made on request from the pickup records; the PDF isn't stored | Not stored | Organizations choose when to download |
+| 11 | Analytics cookies | Pages visited, six events (sign-up done, pickup requested, confirmed, disputed, withdrawal requested, app installed), the Supabase user id, device and browser details PostHog collects | See where people get stuck and improve the app | Consent | PostHog | PostHog EU cloud (Frankfurt) | TODO: confirm with Kenzy (PostHog project retention setting). The consent cookie lasts 12 months | "Reject non-essential" in the cookie banner, or "Cookie settings" in the footer or Settings |
+| 12 | Session replay | A recording of page layout, clicks and scrolling, with every input and all text masked; never on the wallet, settings, collector or ops pages | Find confusing screens | Consent (separate from analytics) | PostHog | PostHog EU cloud (Frankfurt) | TODO: confirm with Kenzy (PostHog recording retention) | Leave "Session recordings" off (the default), or turn it off in Cookie settings |
+| 13 | Marketing emails | Email address, opt-in choice and time, unsubscribe token | Tips, price updates and offers | Consent | Resend | Supabase, EU; Resend (TODO: confirm with Kenzy which Resend region) | Opt-in record: while the account is open. TODO: confirm with Kenzy | One-click unsubscribe in every email, or Email preferences in Settings |
+| 14 | Admin logs | Which admin resolved a dispute, approved or rejected a withdrawal, made a balance adjustment (with its note), set a price, made a bale or wrote a post; server request logs. Role changes and assignments are not logged by name. TODO: confirm with Kenzy whether they should be | Accountability for money and account changes; fix errors | Legitimate interest; legal obligation (financial records) | Render (server logs), Supabase | Supabase, EU; Render logs, Frankfurt | Database records: with the records they belong to. Render logs: TODO: confirm with Kenzy (Render's log retention for the plan) | Ask EcoCyclers what is recorded about you |
+
+Also essential, no consent needed: the login session cookies (Supabase) and the theme choice (dark mode) kept in the
+browser. The `pc_consent` cookie stores the cookie choice itself.
+
+Installed app (PWA, added 3 Nov 2026): the service worker caches only the build's static files, icons, the offline page
+and the public pages `/`, `/guide` and `/privacy`, never API responses or logged-in pages, and logging out deletes its
+runtime caches. The browser's local storage keeps when the install card was dismissed (`pc_install_dismissed_at`) and
+whether the iPhone tip was shown (`pc_ios_tip_seen`). No personal data.
+
+Open questions for Kenzy (all marked TODO above): retention periods for each row, the Cloudinary, Termii and Resend
+regions, collectors' employment status, and a privacy contact (email or named person) for the notice.

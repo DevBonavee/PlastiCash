@@ -329,6 +329,15 @@ export default function LandingPage() {
               <Faq q="What is a point?">
                 1 point = ₦1. Your wallet shows both.
               </Faq>
+              <Faq q="What cookies do you use?">
+                One cookie keeps you logged in and one remembers dark mode. We only count visits with PostHog if you
+                say yes in the cookie banner, and we only record sessions if you switch that on separately. You can
+                change your mind under &ldquo;Cookie settings&rdquo; at the bottom of any page.{" "}
+                <Link href="/privacy#cookies" className="font-semibold text-primary underline underline-offset-2">
+                  More in the privacy notice
+                </Link>
+                .
+              </Faq>
             </div>
           </Section>
 

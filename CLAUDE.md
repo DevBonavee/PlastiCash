@@ -26,6 +26,7 @@ When a spec and the code disagree, the spec wins. If a spec is unclear or two sp
 ## Stack
 
 - **web/**: Next.js (App Router) + TypeScript, Tailwind CSS, shadcn/ui, daisyUI (with class prefix `d-`), Framer Motion, Leaflet (react-leaflet), Sonner toasts, shadcn Skeleton. Deployed on Vercel.
+  - PWA: Web App Manifest (app/manifest.ts) + service worker with Serwist (@serwist/turbopack; the app builds with Turbopack, so not the webpack-only @serwist/next; decided 3 Nov 2026). Installable on Android and iOS.
 - **api/**: Python 3.12, FastAPI, SQLModel, Alembic, pytest. **Async throughout:** `async def` endpoints and dependencies, SQLModel `AsyncSession` on the `asyncpg` driver (`postgresql+asyncpg://` URLs), an async Alembic env, and async tests (`pytest-asyncio`, `httpx.AsyncClient`). Runs in Docker. Deployed on Render.
 - **Supabase**: Postgres database, Auth (email + password, and Google sign-in, added 13 Oct 2026 at Kenzy's request), Realtime. Supabase Storage is not used; photos go to Cloudinary.
 - **Redis** (added 13 Oct 2026 at Kenzy's request): rate limits and small caches only; optional and fails open, never part of the money rules. Local: `docker compose up -d redis`; production: Render Key Value.
@@ -72,6 +73,8 @@ When a spec and the code disagree, the spec wins. If a spec is unclear or two sp
 7. **Every write goes through FastAPI.** The browser uses Supabase only for login and Realtime subscriptions. FastAPI checks role and ownership on every route.
 8. **Privacy.** Users never see a collector's phone number. A collector's location is stored only while the pickup is `EN_ROUTE` and only on that pickup. Users only see their own data.
 9. **Secrets live in `.env` files**, which are gitignored. Never commit keys and never log them.
+10. **Any new feature that collects or uses personal data must add or update a row in docs/privacy/processing-register.md.**
+11. **The service worker never caches money or personal data.** API calls (NEXT_PUBLIC_API_URL), Supabase auth and Realtime, Paystack and Cloudinary uploads are always network-only. Only static assets, fonts, icons and public pages are cached.
 
 ## Commands
 

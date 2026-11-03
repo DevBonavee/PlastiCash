@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { LogoutButton } from "@/components/auth/logout-button";
+import { AnalyticsUser } from "@/components/consent/cookie-consent";
 import { CollectorShell, OpsShell, UserShell } from "@/components/layout/shells";
 import { Skeleton } from "@/components/ui/skeleton";
 import { loadMe, ROLE_HOME, type Role } from "@/lib/me";
@@ -21,7 +22,13 @@ export async function AreaGate({ role, children }: { role: Role; children: React
   if (me.role !== role) redirect(ROLE_HOME[me.role]);
 
   const Shell = SHELL[role];
-  return <Shell me={me}>{children}</Shell>;
+  return (
+    <>
+      {/* Analytics never runs on the collector or ops portals; users are identified by their Supabase id only. */}
+      {role === "USER" && <AnalyticsUser id={me.id} />}
+      <Shell me={me}>{children}</Shell>
+    </>
+  );
 }
 
 function InactiveNotice({ message }: { message: string }) {

@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -11,9 +11,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.auth import AuthUser, CurrentProfile, UserProfile, get_auth_user
 from app.db import get_session
 from app.errors import ApiError
-from app.models import AccountType, Profile, Role
+from app.models import AccountType, GuardianConsent, Profile, Role
 from app.schemas import BankIn, BankOption, BankResolveOut, MeOut, ProfileCreate, ProfileUpdate
-from app.services import paystack
+from app.services import guardian, marketing, paystack, supabase_admin
 from app.services.paystack import PaystackError
 from app.ratelimit import HOUR, rate_limit
 
@@ -26,7 +26,7 @@ ORG_FIELDS = {"org_name", "org_type", "cac_number"}
 
 
 def phone_taken_error() -> ApiError:
-    return ApiError(409, "PHONE_TAKEN", "This phone number is already used by another account.")
+    return ApiError(409, "PHONE_TAKEN", "This number is already registered")
 
 
 async def phone_taken(session: AsyncSession, phone: str, except_id: UUID | None = None) -> bool:
@@ -52,16 +52,49 @@ async def save(session: AsyncSession, profile: Profile) -> Profile:
     dependencies=[Depends(rate_limit("create-profile", 10, HOUR))],
 )
 async def create_profile(
-    body: ProfileCreate, auth_user: Annotated[AuthUser, Depends(get_auth_user)], session: SessionDep
+    body: ProfileCreate,
+    auth_user: Annotated[AuthUser, Depends(get_auth_user)],
+    session: SessionDep,
+    background: BackgroundTasks,
 ) -> MeOut:
     if await session.get(Profile, auth_user.id) is not None:
         raise ApiError(409, "PROFILE_EXISTS", "Your profile is already set up.")
     if not auth_user.email:
         raise ApiError(422, "EMAIL_REQUIRED", "Your login has no email address.")
+    age = guardian.age_on(body.date_of_birth, guardian.lagos_today()) if body.date_of_birth else None
+    if age is not None and age < guardian.MIN_AGE:
+        # No account for under-13s: remove the login from step 1 so we keep nothing about the child.
+        await supabase_admin.delete_user(auth_user.id)
+        raise ApiError(403, "UNDER_13", guardian.UNDER_13_MESSAGE)
     if await phone_taken(session, body.phone):
         raise phone_taken_error()
-    profile = Profile(id=auth_user.id, role=Role.USER, email=auth_user.email, **body.model_dump())
-    return MeOut.from_profile(await save(session, profile))
+    profile = Profile(id=auth_user.id, role=Role.USER, email=auth_user.email, **body.profile_fields())
+    marketing.set_opt_in(profile, body.marketing_opt_in)
+    token = None
+    if age is not None and age < guardian.ADULT_AGE:
+        profile.is_minor = True
+        profile.guardian_consent_status = GuardianConsent.PENDING
+        token = guardian.issue_link(profile)
+    saved = await save(session, profile)
+    if token:
+        background.add_task(guardian.send_link, saved, token)
+    return MeOut.from_profile(saved)
+
+
+@router.post(
+    "/me/guardian/resend", response_model=MeOut,
+    dependencies=[Depends(rate_limit("guardian-resend", 10, HOUR))],
+)
+async def resend_guardian_link(profile: UserProfile, session: SessionDep, background: BackgroundTasks) -> MeOut:
+    """A new consent link for the parent or guardian (the old one stops working). Up to 3 times."""
+    if not profile.is_minor or profile.guardian_consent_status != GuardianConsent.PENDING:
+        raise ApiError(409, "NOTHING_TO_RESEND", "There's no approval waiting for your parent or guardian.")
+    if guardian.resends_left(profile) == 0:
+        raise ApiError(409, "RESEND_LIMIT", "You've sent the link the most times allowed. Ask us on WhatsApp for help.")
+    token = guardian.issue_link(profile)
+    saved = await save(session, profile)
+    background.add_task(guardian.send_link, saved, token)
+    return MeOut.from_profile(saved)
 
 
 @router.get("/me", response_model=MeOut)
@@ -81,6 +114,13 @@ async def update_me(body: ProfileUpdate, profile: CurrentProfile, session: Sessi
             raise ApiError(422, "VALIDATION_ERROR", "Organizations need an organization name and type.")
     if "phone" in changes and await phone_taken(session, changes["phone"], except_id=profile.id):
         raise phone_taken_error()
+    if "marketing_opt_in" in changes:
+        opt_in = changes.pop("marketing_opt_in")
+        if opt_in is not None:
+            marketing.set_opt_in(profile, opt_in)
+    if ({"address", "area"} & changes.keys()) and "lat" not in changes:
+        # A new street without a new pin: the old pin would point at the old place.
+        changes["lat"] = changes["lng"] = None
     for key, value in changes.items():
         setattr(profile, key, value)
     return MeOut.from_profile(await save(session, profile))
@@ -132,7 +172,9 @@ async def resolve_bank(body: BankIn, _: UserProfile) -> BankResolveOut:
 @router.post("/me/bank", response_model=MeOut, dependencies=[Depends(rate_limit("bank-save", 5, HOUR))])
 async def save_bank(body: BankIn, profile: UserProfile, session: SessionDep) -> MeOut:
     """Check the account with the bank again (never trust the name from the browser), create the Paystack
-    transfer recipient, then save. Withdrawals use a snapshot of these details."""
+    transfer recipient, then save. Withdrawals use a snapshot of these details. Minors need a guardian's consent
+    first, and their account should be in the guardian's name (a mismatch is flagged to the admin, not refused)."""
+    guardian.require_consent(profile)
     bank_name = await _bank_name(body.bank_code)
     try:
         account_name = await paystack.resolve_account(body.account_number, body.bank_code)

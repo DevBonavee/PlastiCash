@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { Logo } from "@/components/brand/logo";
 import { ThemeToggle } from "@/components/brand/theme";
+import { CookieSettingsLink } from "@/components/consent/cookie-settings-link";
 import { HUB, WHATSAPP_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -149,6 +150,8 @@ export function SiteFooter() {
           <Link href="/login" prefetch={false}>
             Log in
           </Link>
+          <Link href="/privacy">Privacy notice</Link>
+          <CookieSettingsLink className="text-left" />
         </div>
       </div>
     </footer>

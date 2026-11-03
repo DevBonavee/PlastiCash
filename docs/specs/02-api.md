@@ -13,9 +13,10 @@ Base URL: `/api/v1`. JSON in and out. Money in responses is given as both `amoun
 
 | Method | Path | What it does |
 |---|---|---|
-| POST | `/me/profile` | Create profile after sign-up: account_type, full_name, phone, org fields, address, area |
+| POST | `/me/profile` | Create profile after sign-up: account_type, full_name, phone, org fields, address, area. Individuals: `date_of_birth`; under 13 → 403 `UNDER_13` and the Supabase login is deleted; 13 to 17 also `guardian_name`, `guardian_phone`, `guardian_email`, `guardian_aware: true` → minor with consent PENDING and a consent link sent (email; SMS when on). Organizations: `adult_confirmed: true` |
+| POST | `/me/guardian/resend` | Minor with consent PENDING: new consent link (old one stops working), up to 3 times; 409 `RESEND_LIMIT` after |
 | GET | `/me` | Profile + `display_name` for the greeting |
-| PATCH | `/me` | Update allowed profile fields |
+| PATCH | `/me` | Update allowed profile fields (incl. the saved pin `lat`, `lng`: both or both null) |
 | GET | `/banks` | Nigerian bank list (proxied from Paystack `GET /bank?country=nigeria`, cached) |
 | POST | `/me/bank` | `{bank_code, account_number}` → Paystack `/bank/resolve` → shows account_name → create transfer recipient (`type: nuban`, `currency: NGN`) → save |
 
@@ -91,6 +92,31 @@ Private portal. Every route is `require_admin`.
 |---|---|---|
 | POST | `/webhooks/paystack` | Verify `x-paystack-signature` = HMAC-SHA512(raw body, `PAYSTACK_SECRET_KEY`). Handle `transfer.success` → PAID; `transfer.failed` and `transfer.reversed` → FAILED + REVERSAL. Idempotent. Always return 200 after a valid signature. |
 | POST | `/jobs/reminders` | Header `X-Cron-Secret`. Called every 15 min by a cron. For AWAITING_CONFIRMATION pickups: send reminder SMS at 2 h, 12 h, 24 h after `weighed_at` (track `reminders_sent`); at 48 h → COMPLETED, `confirmed_via=AUTO`, credit. |
+
+## Parent or guardian consent (public, added 3 Nov 2026)
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/guardian-consent/{token}` | Child's first name, guardian name, link expiry. 404 `LINK_INVALID` (unknown or used), 410 `LINK_EXPIRED` |
+| POST | `/guardian-consent/{token}` | `{decision: "GRANT" \| "DECLINE"}` → GRANTED (unlocks) or DECLINED (stays locked). Uses up the link |
+
+Minors without consent get 403 `GUARDIAN_CONSENT_REQUIRED` from `POST /pickups`, `POST /me/bank`, `POST /withdrawals`
+and hub walk-ins. `GET /admin/users` takes `minor=true` and `consent=PENDING|GRANTED|DECLINED|EXPIRED`;
+`GET /admin/withdrawals` flags `guardian_name_mismatch` when a minor's bank account name doesn't look like the guardian's.
+
+## Marketing email unsubscribe (public, added 3 Nov 2026)
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/unsubscribe/{token}` | Masked email and whether it's subscribed |
+| POST | `/unsubscribe/{token}` | Unsubscribe; also the RFC 8058 one-click POST from mail apps. Idempotent |
+| POST | `/unsubscribe/{token}/resubscribe` | Opt back in. Idempotent |
+
+`POST /me/profile` and `PATCH /me` take `marketing_opt_in` (default false). Marketing email goes only through
+`services/email.py` `send_marketing`, which refuses anyone not opted in and always adds the sender (EcoCyclers, hub
+address), why they get it, a one-click unsubscribe link, the privacy notice, and the `List-Unsubscribe` /
+`List-Unsubscribe-Post: List-Unsubscribe=One-Click` headers. Transactional email (consent links, pickups,
+withdrawals; password reset is Supabase's) doesn't depend on opt-in.
 
 ## Health
 

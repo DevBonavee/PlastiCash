@@ -1,5 +1,6 @@
 """Request and response models. Database tables live in models.py."""
-from datetime import datetime
+import re
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -7,8 +8,9 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.areas import AREAS
-from app.models import AccountType, LedgerEntry, LedgerType, Material, Price, Profile, Role, Withdrawal, WithdrawalStatus
-from app.phone import normalize_ng_phone
+from app.models import AccountType, GuardianConsent, LedgerEntry, LedgerType, Material, Price, Profile, Role, Withdrawal, WithdrawalStatus
+from app.phone import PHONE_ERROR, normalize_ng_phone
+from app.services.guardian import ADULT_AGE, MIN_AGE, age_on, lagos_today, link_expired, resends_left
 
 OrgType = Literal["company", "school", "NGO", "church", "estate", "other"]
 
@@ -36,7 +38,7 @@ class _ProfileFields(BaseModel):
             return None
         phone = normalize_ng_phone(value)
         if phone is None:
-            raise ValueError("Enter a Nigerian mobile number, e.g. 0803 123 4567")
+            raise ValueError(PHONE_ERROR)
         return phone
 
     @field_validator("area", check_fields=False)
@@ -47,9 +49,13 @@ class _ProfileFields(BaseModel):
         return value
 
 
+EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
 class ProfileCreate(_ProfileFields):
-    """Sign-up step 2. Individuals: full name, phone, address, area.
-    Organizations also give org name and type; full_name is the contact person; CAC is optional."""
+    """Sign-up step 2. Individuals: full name, phone, address, area, date of birth; 13-17 also a parent or guardian
+    (name, phone, email) and a tick that they know. Organizations also give org name and type; full_name is the
+    contact person, who confirms they are 18 or older; CAC is optional. Age rules: services/guardian.py."""
 
     account_type: AccountType
     full_name: str = Field(min_length=1, max_length=200)
@@ -59,15 +65,65 @@ class ProfileCreate(_ProfileFields):
     org_name: str | None = Field(default=None, max_length=200)
     org_type: OrgType | None = None
     cac_number: str | None = Field(default=None, max_length=50)
+    date_of_birth: date | None = None
+    guardian_name: str | None = Field(default=None, max_length=200)
+    guardian_phone: str | None = None
+    guardian_email: str | None = Field(default=None, max_length=254)
+    guardian_aware: bool = False
+    adult_confirmed: bool = False  # organizations: the contact person is 18 or older
+    marketing_opt_in: bool = False  # unticked by default
+
+    @field_validator("guardian_name", "guardian_email", mode="before")
+    @classmethod
+    def strip_guardian(cls, value):
+        return (_clean(value) or None) if isinstance(value, str) else value
+
+    @field_validator("guardian_phone")
+    @classmethod
+    def guardian_phone_ok(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        phone = normalize_ng_phone(value)
+        if phone is None:
+            raise ValueError(PHONE_ERROR)
+        return phone
+
+    @field_validator("guardian_email")
+    @classmethod
+    def guardian_email_ok(cls, value: str | None) -> str | None:
+        if value is not None and not re.fullmatch(EMAIL_PATTERN, value):
+            raise ValueError("Enter a valid email address for your parent or guardian")
+        return value.lower() if value else value
 
     @model_validator(mode="after")
     def org_fields(self):
         if self.account_type == AccountType.ORGANIZATION:
             if not self.org_name or not self.org_type:
                 raise ValueError("Organizations need an organization name and type")
+            if not self.adult_confirmed:
+                raise ValueError("The contact person must confirm they are 18 or older")
+            self.date_of_birth = None
+            self.guardian_name = self.guardian_phone = self.guardian_email = None
         else:
             self.org_name = self.org_type = self.cac_number = None
+            if self.date_of_birth is None:
+                raise ValueError("Enter your date of birth")
+            today = lagos_today()
+            if self.date_of_birth > today or age_on(self.date_of_birth, today) > 120:
+                raise ValueError("Check your date of birth")
+            age = age_on(self.date_of_birth, today)
+            if MIN_AGE <= age < ADULT_AGE:
+                if not (self.guardian_name and self.guardian_phone and self.guardian_email):
+                    raise ValueError("Add your parent or guardian's name, phone and email")
+                if not self.guardian_aware:
+                    raise ValueError("Confirm that your parent or guardian knows you're signing up")
+            elif age >= ADULT_AGE:
+                self.guardian_name = self.guardian_phone = self.guardian_email = None
         return self
+
+    def profile_fields(self) -> dict:
+        """Columns for the new profiles row (the two ticks aren't stored; opt-in is set by set_marketing)."""
+        return self.model_dump(exclude={"guardian_aware", "adult_confirmed", "marketing_opt_in"})
 
 
 class ProfileUpdate(_ProfileFields):
@@ -80,6 +136,23 @@ class ProfileUpdate(_ProfileFields):
     org_name: str | None = Field(default=None, min_length=1, max_length=200)
     org_type: OrgType | None = None
     cac_number: str | None = Field(default=None, max_length=50)
+    marketing_opt_in: bool | None = None
+    # Saved map pin. Send both, or both null to remove it.
+    lat: Decimal | None = Field(default=None, ge=-90, le=90)
+    lng: Decimal | None = Field(default=None, ge=-180, le=180)
+
+    @field_validator("lat", "lng")
+    @classmethod
+    def six_places(cls, value: Decimal | None) -> Decimal | None:
+        # numeric(9,6): browsers report more digits than that.
+        return value.quantize(Decimal("0.000001")) if value is not None else None
+
+    @model_validator(mode="after")
+    def pin_pairs(self):
+        sent = {"lat", "lng"} & self.model_fields_set
+        if sent and (sent != {"lat", "lng"} or (self.lat is None) != (self.lng is None)):
+            raise ValueError("Send lat and lng together")
+        return self
 
 
 def display_name(profile: Profile) -> str:
@@ -97,6 +170,15 @@ class BankOut(BaseModel):
     account_number_last4: str
 
 
+class GuardianOut(BaseModel):
+    """Only for minors: where their parent or guardian's consent stands."""
+
+    status: GuardianConsent
+    name: str | None
+    link_expired: bool
+    resends_left: int
+
+
 class MeOut(BaseModel):
     id: UUID
     role: Role
@@ -107,11 +189,16 @@ class MeOut(BaseModel):
     phone: str
     address: str | None
     area: str | None
+    lat: float | None
+    lng: float | None
     org_name: str | None
     org_type: str | None
     cac_number: str | None
     verified_picker: bool
     bank: BankOut | None
+    is_minor: bool = False
+    guardian: GuardianOut | None = None
+    marketing_opt_in: bool = False
 
     @classmethod
     def from_profile(cls, p: Profile) -> "MeOut":
@@ -130,11 +217,21 @@ class MeOut(BaseModel):
             phone=p.phone,
             address=p.address,
             area=p.area,
+            lat=float(p.lat) if p.lat is not None else None,
+            lng=float(p.lng) if p.lng is not None else None,
             org_name=p.org_name,
             org_type=p.org_type,
             cac_number=p.cac_number,
             verified_picker=p.verified_picker,
             bank=bank,
+            is_minor=p.is_minor,
+            guardian=GuardianOut(
+                status=p.guardian_consent_status,
+                name=p.guardian_name,
+                link_expired=link_expired(p),
+                resends_left=resends_left(p),
+            ) if p.is_minor else None,
+            marketing_opt_in=p.marketing_opt_in,
         )
 
 

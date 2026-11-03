@@ -17,6 +17,7 @@ INDIVIDUAL = {
     "phone": "0803 123 4567",
     "address": "12 Zik Avenue",
     "area": "Uwani",
+    "date_of_birth": "1995-04-12",
 }
 ORGANIZATION = {
     "account_type": "ORGANIZATION",
@@ -26,6 +27,7 @@ ORGANIZATION = {
     "area": "GRA",
     "org_name": "Green Hills School",
     "org_type": "school",
+    "adult_confirmed": True,
 }
 
 
@@ -236,3 +238,36 @@ async def test_organization_can_rename_but_not_clear(client: AsyncClient) -> Non
     assert renamed.json()["display_name"] == "Green Hills College"
     cleared = await client.patch("/api/v1/me", json={"org_name": None}, headers=bearer(user_id))
     assert cleared.status_code == 422
+
+
+# ----- Saved map pin (dashboard "Pickup address" bar) -----
+
+
+async def test_patch_me_saves_address_area_and_pin(client: AsyncClient) -> None:
+    user_id = uuid4()
+    assert (await sign_up(client, INDIVIDUAL, user_id)).status_code == 201
+    response = await client.patch(
+        "/api/v1/me",
+        json={"address": "4 Ogui Road", "area": "Ogui", "lat": 6.4402119, "lng": 7.4943337},
+        headers=bearer(user_id),
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["address"], body["area"], body["lat"], body["lng"]) == ("4 Ogui Road", "Ogui", 6.440212, 7.494334)
+
+
+async def test_pin_needs_both_coordinates(client: AsyncClient) -> None:
+    user_id = uuid4()
+    assert (await sign_up(client, INDIVIDUAL, user_id)).status_code == 201
+    for body in ({"lat": 6.44}, {"lat": 6.44, "lng": None}, {"lat": 91, "lng": 7.4}):
+        response = await client.patch("/api/v1/me", json=body, headers=bearer(user_id))
+        assert response.status_code == 422, body
+
+
+async def test_new_street_without_a_pin_clears_the_old_pin(client: AsyncClient) -> None:
+    user_id = uuid4()
+    assert (await sign_up(client, INDIVIDUAL, user_id)).status_code == 201
+    await client.patch("/api/v1/me", json={"lat": 6.44, "lng": 7.49}, headers=bearer(user_id))
+    response = await client.patch("/api/v1/me", json={"address": "9 New Street"}, headers=bearer(user_id))
+    assert response.status_code == 200
+    assert response.json()["lat"] is None and response.json()["lng"] is None

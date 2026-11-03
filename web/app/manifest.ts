@@ -1,21 +1,33 @@
 import type { MetadataRoute } from "next";
 
-import { SITE_DESCRIPTION } from "@/lib/site";
-
-// Lets phones add PlastiCash to the home screen with the brand colours (it is a web app, not a native one).
+// Installable PWA (docs/specs/03-screens-and-routes.md, "PWA"). The launch screen Android shows when the installed app
+// opens is built from background_color and the icon: the logo on forest green, no text (Kenzy, 3 Nov 2026).
+// Icons come from design/logo/plasticash-mark.svg via scripts/make-icons.mjs.
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/app",
     name: "PlastiCash by EcoCyclers",
     short_name: "PlastiCash",
-    description: SITE_DESCRIPTION,
-    start_url: "/app",
+    description: "Sell your plastic waste by weight in Enugu. 1 point = ₦1.",
+    start_url: "/app?source=pwa",
+    scope: "/",
     display: "standalone",
-    background_color: "#F8FAFC",
-    theme_color: "#052E16",
+    orientation: "portrait",
+    background_color: "#052E16",
+    theme_color: "#15803D",
+    categories: ["finance", "lifestyle"],
     icons: [
-      { src: "/icon.svg", sizes: "any", type: "image/svg+xml" },
-      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+    shortcuts: [
+      {
+        name: "Request pickup",
+        url: "/app/request",
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+      },
+      { name: "Wallet", url: "/app/wallet", icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }] },
     ],
   };
 }

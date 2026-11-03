@@ -8,6 +8,8 @@
 | Supabase | New project (region close to Nigeria, e.g. EU) | Copy Project URL, anon/publishable key, service role key, database connection string. Auth → Email provider on. |
 | Paystack | Account in **test mode** | Copy test secret key. Set the test webhook URL once the API is deployed. Check the transfers settings: API transfers may need the "OTP for transfers" setting turned off to go through automatically. |
 | Cloudinary | Free account | Cloud name, API key, API secret |
+| Resend | Account + verified sending domain | API key for guardian consent and marketing emails (added 3 Nov 2026) |
+| PostHog | EU cloud project (optional) | Project key for analytics after cookie consent (added 3 Nov 2026) |
 | Termii | Account | API key; request a sender ID (e.g. "EcoCyclers"), which needs approval and can take time, so apply early |
 | Vercel | Account linked to GitHub | For `web/` |
 | Render | Account linked to GitHub | For `api/` (Docker web service) |
@@ -42,6 +44,11 @@ MIN_WITHDRAWAL_KOBO=500000
 DOOR_MIN_KG=50
 AUTO_CONFIRM_HOURS=48
 SMS_ENABLED=false                             # true only when Termii is ready; when false, log "SMS would send" without the code
+RESEND_API_KEY=                               # Resend (email, added 3 Nov 2026); empty = log "email would send" without the content
+EMAIL_FROM=PlastiCash <hello@plasticash.app>  # sender on a domain verified in Resend
+SITE_URL=http://localhost:3000                # public web address for links in emails and SMS (guardian consent, unsubscribe)
+API_PUBLIC_URL=http://localhost:8000/api/v1   # this API's public URL, for the one-click List-Unsubscribe header
+HUB_ADDRESS=21A Off Umuawulu, by Ugwuaji, Enugu/PH Expressway, Enugu   # sender address in marketing emails
 ```
 
 `web/.env.local`:
@@ -53,7 +60,16 @@ NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=
 NEXT_PUBLIC_HUB_ADDRESS=
 NEXT_PUBLIC_WHATSAPP_NUMBER=234...
+NEXT_PUBLIC_POSTHOG_KEY=                      # PostHog project key; empty = analytics off (added 3 Nov 2026)
+NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
 ```
+
+Analytics (PostHog, EU cloud) loads only after the visitor accepts analytics in the cookie banner (`pc_consent` cookie,
+12 months), never on `/collector` or `/ops-portal`. Session recordings need their own "Session recordings" consent;
+inputs and text are masked, and nothing is recorded on `/app/wallet`, `/app/settings`, `/collector` or `/ops-portal`.
+Events: page views, `signup_completed`, `pickup_requested`, `pickup_confirmed`, `pickup_disputed`,
+`withdrawal_requested`, `pwa_installed`, identified by the Supabase user id only. Set the key in Vercel to turn it on; the CSP then
+allows the PostHog hosts.
 
 The service role key, Paystack secret and Cloudinary secret must **never** appear in `web/`.
 
@@ -78,6 +94,17 @@ The service role key, Paystack secret and Cloudinary secret must **never** appea
 - **Paystack**: test webhook URL = `https://<render-url>/api/v1/webhooks/paystack`.
 - **Cron**: POST `https://<render-url>/api/v1/jobs/reminders` every 15 min with header `X-Cron-Secret` (GitHub Actions: `.github/workflows/reminders.yml`).
 - Set `FRONTEND_ORIGIN` on the API to the Vercel URL.
+
+## PWA (installable app, added 3 Nov 2026)
+
+- Packages in `web/`: `@serwist/turbopack` and `serwist` 9.5.13 (service worker), `esbuild` 0.28.2 (bundles
+  `app/sw.ts` at build time), `sharp` 0.35.5 (dev, icons). No new env vars; the worker reads `NEXT_PUBLIC_API_URL`.
+- The service worker only runs in production builds: test with `npm run build && npm run start`, not `npm run dev`.
+  The admin "Turn on notifications" button still registers it when used.
+- Icons: after a logo change run `node scripts/make-icons.mjs` (writes `public/icons/`).
+- `/serwist/sw.js` is sent with `Cache-Control: no-cache` so fixes reach phones at once.
+- Check: Chrome DevTools → Application → Manifest (no errors, maskable icon) and Service workers (activated);
+  Cache Storage should hold only `serwist-precache-*`, `public-pages` and `static-images`.
 
 ## Google sign-in (Supabase Auth)
 

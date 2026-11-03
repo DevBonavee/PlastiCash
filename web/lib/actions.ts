@@ -1,6 +1,7 @@
 "use server";
 
 import { api, type ApiErrorBody } from "@/lib/api";
+import type { Me } from "@/lib/me";
 import type { CollectorPickup, WeighItemIn, WeighResult } from "@/lib/types";
 
 // Server actions shared by user screens. Every write goes through FastAPI with the user's token (CLAUDE.md rule 7).
@@ -59,7 +60,11 @@ export async function saveBank(bank_code: string, account_number: string) {
   });
 }
 
-export async function updateProfile(body: Record<string, string>) {
+export async function resendGuardianLink() {
+  return call<Me>("/me/guardian/resend", "POST");
+}
+
+export async function updateProfile(body: Record<string, string | number | boolean | null>) {
   return call<{ display_name: string }>("/me", "PATCH", body);
 }
 

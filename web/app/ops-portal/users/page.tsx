@@ -7,7 +7,7 @@ import type { UserRow } from "@/lib/admin-types";
 import { get } from "@/lib/api";
 import type { Me } from "@/lib/me";
 
-type Filters = { q?: string; role?: string };
+type Filters = { q?: string; role?: string; minor?: string; consent?: string };
 
 export default function UsersPage({ searchParams }: PageProps<"/ops-portal/users">) {
   return (
@@ -29,7 +29,14 @@ export default function UsersPage({ searchParams }: PageProps<"/ops-portal/users
 async function filtersOf(searchParams: PageProps<"/ops-portal/users">["searchParams"]): Promise<Filters> {
   const params = await searchParams;
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || undefined;
-  return { q: one(params.q), role: one(params.role) };
+  const minors = one(params.minors);
+  // "minors" picks under-18s, optionally by their guardian's answer; the API takes minor=true and consent=...
+  return {
+    q: one(params.q),
+    role: one(params.role),
+    minor: minors ? "true" : undefined,
+    consent: minors && minors !== "all" ? minors : undefined,
+  };
 }
 
 async function FilterForm({ searchParams }: { searchParams: PageProps<"/ops-portal/users">["searchParams"] }) {
@@ -43,6 +50,14 @@ async function FilterForm({ searchParams }: { searchParams: PageProps<"/ops-port
           <option value="USER">Customers</option>
           <option value="COLLECTOR">Collectors</option>
           <option value="ADMIN">Admins</option>
+        </select>
+        <select name="minors" defaultValue={f.minor ? (f.consent ?? "all") : ""} aria-label="Under 18" className={selectClass}>
+          <option value="">Any age</option>
+          <option value="all">Under 18: all</option>
+          <option value="PENDING">Under 18: waiting for guardian</option>
+          <option value="EXPIRED">Under 18: link expired</option>
+          <option value="DECLINED">Under 18: guardian declined</option>
+          <option value="GRANTED">Under 18: guardian approved</option>
         </select>
         <button type="submit" className="d-btn d-btn-outline d-btn-sm">
           Search

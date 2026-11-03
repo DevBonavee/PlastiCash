@@ -28,7 +28,7 @@ PlastiCash is **one responsive web app** (Next.js) opened in a browser at `plast
 **Breakpoints (Tailwind):** `base` from 360 px, `md` from 768 px, `lg` from 1024 px, `xl` from 1280 px.
 Below `lg` the user area uses a top bar and a bottom nav. From `lg` up, a left sidebar replaces both.
 
-**Installable (PWA).** Saving the site to the home screen shows a green launch screen with the logo and "Made in Enugu · 1 point = ₦1". There is no browser bar in that mode.
+**Installable (PWA).** Saving the site to the home screen shows a forest-green launch screen (`#052E16`) with the logo only. Android draws it from the manifest and can't add text, so "Made in Enugu · 1 point = ₦1" was dropped (Kenzy, 3 Nov 2026). There is no browser bar in that mode. Status bar: `#15803D`, or `#0B1410` in dark mode.
 
 ## 3. Brand personality
 
@@ -110,7 +110,7 @@ Every badge has a label and an icon. Colour is never used alone.
 | UI and body | **Plus Jakarta Sans** | 400–700 |
 | Numbers, kg, refs, codes, ledger | **Geist Mono** | 400–600, tabular figures |
 
-All three are free on Google Fonts; load them with `next/font/google`. The mono face makes money columns line up, and it separates 0 from O and 1 from l in SMS codes.
+All three are free (SIL Open Font License). They are self-hosted: `next/font/local` loads the `.woff2` files in `web/app/fonts/`, so the browser never contacts Google (changed 26 Oct 2026, confirmed 3 Nov 2026). The mono face makes money columns line up, and it separates 0 from O and 1 from l in SMS codes.
 
 | Style | Phone | Laptop |
 |---|---|---|

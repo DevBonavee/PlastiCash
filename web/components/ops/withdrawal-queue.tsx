@@ -118,6 +118,11 @@ export function WithdrawalQueue({ rows }: { rows: AdminWithdrawal[] }) {
                 <span className="tabular block text-xs text-muted-foreground">
                   {w.bank_name} •••• {w.account_number_last4}
                 </span>
+                {w.guardian_name_mismatch && (
+                  <span className="mt-1 block w-fit rounded bg-bad-soft px-1.5 py-0.5 text-[11px] font-bold text-bad">
+                    Under 18: not the guardian&apos;s name. Check before paying.
+                  </span>
+                )}
               </TableCell>
               <TableCell className="tabular text-sm">{dateTime(w.created_at)}</TableCell>
               <TableCell>

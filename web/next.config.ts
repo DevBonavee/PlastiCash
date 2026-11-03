@@ -5,12 +5,18 @@ import type { NextConfig } from "next";
 const dev = process.env.NODE_ENV !== "production";
 const origin = (url: string | undefined) => (url ? new URL(url).origin : "");
 const supabase = origin(process.env.NEXT_PUBLIC_SUPABASE_URL);
+// PostHog (EU) only when a key is set; analytics itself still waits for cookie consent. The session recorder script
+// comes from the matching assets host (eu.i.posthog.com -> eu-assets.i.posthog.com).
+const posthog = process.env.NEXT_PUBLIC_POSTHOG_KEY
+  ? origin(process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.i.posthog.com")
+  : "";
+const posthogAssets = posthog.replace(/^https:\/\/(\w+)\.i\.posthog\.com$/, "https://$1-assets.i.posthog.com");
 
-// The browser talks only to our API, Supabase (login and Realtime) and Cloudinary (photo uploads). Scripts stay
+// The browser talks only to our API, Supabase (login and Realtime), Cloudinary (photo uploads) and, with consent, PostHog. Scripts stay
 // 'unsafe-inline' because Next's inline bootstrap scripts need a nonce otherwise, which would make every page dynamic.
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}${posthogAssets ? ` ${posthogAssets}` : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
@@ -20,6 +26,8 @@ const csp = [
     supabase,
     supabase.replace(/^http/, "ws"),
     "https://api.cloudinary.com",
+    posthog,
+    posthog === posthogAssets ? "" : posthogAssets,
     dev ? "ws:" : "",
   ].filter(Boolean).join(" "),
   "media-src 'self' blob: mediastream:",
@@ -48,13 +56,13 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   reactCompiler: true,
-  // Browsers still ask for /favicon.ico; the icon is app/icon.svg (the PlastiCash mark).
+  // Browsers still ask for /favicon.ico; it lives in public/icons/ with the other app icons.
   // The service worker must always be fresh, or a fix to it could take a day to reach browsers.
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
       {
-        source: "/sw.js",
+        source: "/serwist/sw.js",
         headers: [
           { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
           { key: "Content-Type", value: "application/javascript; charset=utf-8" },
@@ -63,7 +71,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async redirects() {
-    return [{ source: "/favicon.ico", destination: "/icon.svg", permanent: true }];
+    return [{ source: "/favicon.ico", destination: "/icons/favicon.ico", permanent: true }];
   },
   turbopack: {
     // Repo root, so web/ can import the shared design tokens in ../design/theme.css (DESIGN_BRIEF.md §16).

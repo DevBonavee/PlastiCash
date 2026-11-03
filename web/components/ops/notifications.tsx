@@ -14,6 +14,7 @@ import {
   type NewRequest,
 } from "@/lib/admin-actions";
 import { cn } from "@/lib/utils";
+import { SW_URL } from "@/lib/pwa";
 
 const POLL_MS = 20_000;
 const BOARD = "/ops-portal/pickups?status=REQUESTED";
@@ -121,7 +122,7 @@ export function PushToggle({ dark = false }: { dark?: boolean }) {
         if (!cancelled) setState(first);
         return;
       }
-      const registration = await navigator.serviceWorker.register("/sw.js");
+      const registration = await navigator.serviceWorker.register(SW_URL, { scope: "/" });
       const existing = await registration.pushManager.getSubscription();
       if (!cancelled) setState(existing && Notification.permission === "granted" ? "on" : "off");
     })().catch(() => !cancelled && setState("unsupported"));
@@ -144,7 +145,7 @@ export function PushToggle({ dark = false }: { dark?: boolean }) {
         toast.error("Notifications were not allowed.");
         return;
       }
-      const registration = await navigator.serviceWorker.register("/sw.js");
+      const registration = await navigator.serviceWorker.register(SW_URL, { scope: "/" });
       await navigator.serviceWorker.ready;
       const subscription =
         (await registration.pushManager.getSubscription()) ??

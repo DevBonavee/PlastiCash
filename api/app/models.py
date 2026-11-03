@@ -92,6 +92,15 @@ class BaleStatus(str, enum.Enum):
     SOLD = "SOLD"
 
 
+class GuardianConsent(str, enum.Enum):
+    """NDPA 2023: users aged 13-17 need a parent or guardian's consent (added 3 Nov 2026)."""
+
+    NOT_REQUIRED = "NOT_REQUIRED"
+    PENDING = "PENDING"
+    GRANTED = "GRANTED"
+    DECLINED = "DECLINED"
+
+
 # ===== Column helpers =====
 
 
@@ -160,6 +169,8 @@ class Profile(SQLModel, table=True):
         CheckConstraint(
             "account_type is distinct from 'ORGANIZATION' or org_name is not null", name="org_needs_name"
         ),
+        Index("profiles_guardian_token_hash_key", "guardian_token_hash", unique=True,
+              postgresql_where=text("guardian_token_hash is not null")),
     )
 
     id: UUID = Field(sa_column=Column(PGUUID(as_uuid=True), primary_key=True))
@@ -173,6 +184,9 @@ class Profile(SQLModel, table=True):
     email: str = Field(sa_column=txt(nullable=False))
     address: str | None = Field(default=None, sa_column=txt())
     area: str | None = Field(default=None, sa_column=txt())
+    # Saved pickup pin (added 3 Nov 2026); prefilled on the request form. Null until the user drops one.
+    lat: Decimal | None = Field(default=None, sa_column=coord())
+    lng: Decimal | None = Field(default=None, sa_column=coord())
     bank_name: str | None = Field(default=None, sa_column=txt())
     bank_code: str | None = Field(default=None, sa_column=txt())
     account_number: str | None = Field(default=None, sa_column=txt())
@@ -180,6 +194,25 @@ class Profile(SQLModel, table=True):
     paystack_recipient_code: str | None = Field(default=None, sa_column=txt())
     verified_picker: bool = Field(default=False, sa_column=flag(False))
     is_active: bool = Field(default=True, sa_column=flag(True))
+    # Age and guardian consent (added 3 Nov 2026). Individuals give a date of birth at sign-up; 13-17 is a minor who
+    # can't request pickups, save a bank account or withdraw until a guardian consents through the emailed link.
+    date_of_birth: date | None = Field(default=None, sa_column=Column(Date, nullable=True))
+    is_minor: bool = Field(default=False, sa_column=flag(False))
+    guardian_name: str | None = Field(default=None, sa_column=txt())
+    guardian_phone: str | None = Field(default=None, sa_column=txt())
+    guardian_email: str | None = Field(default=None, sa_column=txt())
+    guardian_consent_status: GuardianConsent = Field(
+        default=GuardianConsent.NOT_REQUIRED,
+        sa_column=enum_col(GuardianConsent, "guardian_consent", default="NOT_REQUIRED"),
+    )
+    guardian_consent_at: datetime | None = Field(default=None, sa_column=ts())
+    guardian_token_hash: str | None = Field(default=None, sa_column=txt())  # sha256 of the link token; null once used
+    guardian_token_expires_at: datetime | None = Field(default=None, sa_column=ts())
+    guardian_link_sends: int = Field(default=0, sa_column=Column(Integer, nullable=False, server_default=text("0")))
+    # Marketing email (opt-in, added 3 Nov 2026). Transactional email doesn't depend on these.
+    marketing_opt_in: bool = Field(default=False, sa_column=flag(False))
+    marketing_opt_in_at: datetime | None = Field(default=None, sa_column=ts())
+    unsubscribe_token: str | None = Field(default=None, sa_column=txt(unique=True))
     created_at: datetime | None = Field(default=None, sa_column=now_ts())
 
 

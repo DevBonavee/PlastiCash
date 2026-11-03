@@ -21,5 +21,10 @@ export default function RequestPage() {
 async function Form() {
   const [prices, state] = await Promise.all([pricesOrThrow(), loadMe()]);
   const me = state.kind === "ok" ? state.me : null;
-  return <RequestForm prices={prices} defaults={{ address: me?.address ?? "", area: me?.area ?? "" }} />;
+  return (
+    <RequestForm
+      prices={prices}
+      defaults={{ address: me?.address ?? "", area: me?.area ?? "", lat: me?.lat ?? null, lng: me?.lng ?? null }}
+    />
+  );
 }

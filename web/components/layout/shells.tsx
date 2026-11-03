@@ -25,6 +25,7 @@ import { money } from "@/lib/format";
 import { greeting, type Me } from "@/lib/me";
 import type { Wallet } from "@/lib/types";
 import { HUB, WHATSAPP_URL } from "@/lib/site";
+import { GuardianBanner } from "@/components/app/guardian-banner";
 
 // Area shells from docs/DESIGN_BRIEF.md §6.
 
@@ -225,6 +226,11 @@ export function UserShell({ me, children }: { me: Me; children: ReactNode }) {
           </div>
         </header>
 
+        {me.guardian && me.guardian.status !== "GRANTED" && (
+          <div className="px-4 pt-3 lg:px-8 lg:pt-6">
+            <GuardianBanner guardian={me.guardian} />
+          </div>
+        )}
         <div className="flex flex-1 flex-col pb-24 lg:pb-0">{children}</div>
 
         {/* Phone bottom nav */}

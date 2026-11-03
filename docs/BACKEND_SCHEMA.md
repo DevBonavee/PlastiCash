@@ -135,6 +135,8 @@ create type withdrawal_status as enum ('PENDING','PROCESSING','PAID','FAILED','R
 create type bale_status as enum ('IN_STORE','PROCESSED','SOLD');
 
 -- ===== 1. profiles =====
+create type guardian_consent as enum ('NOT_REQUIRED', 'PENDING', 'GRANTED', 'DECLINED');
+
 create table profiles (
   id                      uuid primary key,              -- = auth.users.id
   role                    role not null default 'USER',
@@ -147,6 +149,8 @@ create table profiles (
   email                   text not null,
   address                 text,
   area                    text,
+  lat                     numeric(9,6),                  -- saved pickup pin (added 3 Nov 2026)
+  lng                     numeric(9,6),
   bank_name               text,
   bank_code               text,
   account_number          text,
@@ -154,10 +158,28 @@ create table profiles (
   paystack_recipient_code text,
   verified_picker         boolean not null default false,
   is_active               boolean not null default true,
+  -- Age and parent or guardian consent (NDPA 2023; added 3 Nov 2026)
+  date_of_birth           date,
+  is_minor                boolean not null default false,
+  guardian_name           text,
+  guardian_phone          text,
+  guardian_email          text,
+  guardian_consent_status guardian_consent not null default 'NOT_REQUIRED',
+  guardian_consent_at     timestamptz,
+  guardian_token_hash     text,                          -- sha256 of the single-use link token
+  guardian_token_expires_at timestamptz,
+  guardian_link_sends     integer not null default 0,
+  -- Marketing email, opt-in (added 3 Nov 2026)
+  marketing_opt_in        boolean not null default false,
+  marketing_opt_in_at     timestamptz,
+  unsubscribe_token       text unique,
   created_at              timestamptz not null default now(),
   constraint user_needs_account_type check (role <> 'USER' or account_type is not null),
   constraint org_needs_name check (account_type is distinct from 'ORGANIZATION' or org_name is not null)
 );
+
+create unique index profiles_guardian_token_hash_key on profiles (guardian_token_hash)
+  where guardian_token_hash is not null;
 
 -- ===== 2. prices (versioned, insert-only) =====
 create table prices (

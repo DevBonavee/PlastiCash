@@ -12,9 +12,9 @@ from app.config import get_settings
 from app.errors import ApiError
 from app.models import Pickup, PickupChannel, PickupItem, PickupStatus, Profile, Role
 from app.pickup_schemas import EstimateItemIn, EstimateLineOut, EstimateOut, PickupCreate, ResolveItemIn, WeighItemIn
-from app.phone import normalize_ng_phone
+from app.phone import PHONE_ERROR, normalize_ng_phone
 from app.schemas import display_name, points
-from app.services import cloudinary, otp, pricing
+from app.services import cloudinary, guardian, otp, pricing
 from app.services.pickup_state import Actor, actor_for, create_walk_in, lock_pickup, transition
 
 S = PickupStatus
@@ -272,7 +272,7 @@ async def resolve(session: AsyncSession, pickup_id: UUID, admin: Profile, lines:
 async def find_user_by_phone(session: AsyncSession, phone: str) -> Profile | None:
     normalized = normalize_ng_phone(phone)
     if normalized is None:
-        raise ApiError(422, "VALIDATION_ERROR", "Enter a Nigerian mobile number, e.g. 0803 123 4567")
+        raise ApiError(422, "VALIDATION_ERROR", PHONE_ERROR)
     return (
         await session.exec(select(Profile).where(Profile.phone == normalized, Profile.role == Role.USER,
                                                  Profile.is_active))
@@ -285,6 +285,8 @@ async def walk_in(
     user = await session.get(Profile, user_id)
     if user is None or user.role != Role.USER or not user.is_active:
         raise ApiError(404, "NOT_FOUND", "Customer not found.")
+    if guardian.is_locked(user):
+        raise ApiError(403, "GUARDIAN_CONSENT_REQUIRED", "This customer is under 18 and still needs a parent or guardian to approve their account.")
     pickup = Pickup(
         user_id=user.id, collector_id=collector.id, channel=PickupChannel.HUB, status=S.REQUESTED,
         area=user.area, scheduled_date=lagos_today(), qr_scanned_at=datetime.now(timezone.utc),

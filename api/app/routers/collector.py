@@ -14,7 +14,7 @@ from app.errors import ApiError
 from app.models import Pickup, PickupStatus, Profile
 from app.pickup_schemas import CollectorPickupOut, LocationIn, OtpIn, ScanIn, UserSearchOut, WalkInIn, WeighIn, WeighOut
 from app.schemas import display_name
-from app.services import pickups, termii
+from app.services import guardian, pickups, termii
 from app.services.pickup_state import transition
 from app.ratelimit import HOUR, MINUTE, rate_limit
 
@@ -115,6 +115,8 @@ async def search_user(phone: str, me: CollectorProfile, session: SessionDep) -> 
     user = await pickups.find_user_by_phone(session, phone)
     if user is None:
         raise ApiError(404, "NOT_FOUND", "No PlastiCash account with this number. Ask them to sign up first.")
+    if guardian.is_locked(user):
+        raise ApiError(403, "GUARDIAN_CONSENT_REQUIRED", "This customer is under 18 and still needs a parent or guardian to approve their account.")
     return UserSearchOut(id=user.id, name=display_name(user))
 
 

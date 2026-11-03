@@ -3,8 +3,26 @@
 import { redirect } from "next/navigation";
 
 import { api } from "@/lib/api";
+import { ADULT_AGE, MIN_AGE, ageOn, lagosToday } from "@/lib/age";
+import { createClient } from "@/lib/supabase/server";
 
-const FIELDS = ["account_type", "full_name", "phone", "address", "area", "org_name", "org_type", "cac_number"] as const;
+const FIELDS = [
+  "account_type",
+  "full_name",
+  "phone",
+  "address",
+  "area",
+  "org_name",
+  "org_type",
+  "cac_number",
+  "date_of_birth",
+  "guardian_name",
+  "guardian_phone",
+  "guardian_email",
+  "guardian_aware",
+  "adult_confirmed",
+  "marketing_opt_in",
+] as const;
 type Field = (typeof FIELDS)[number];
 
 export type DetailsState = {
@@ -14,6 +32,8 @@ export type DetailsState = {
   values: Partial<Record<Field, string>>;
   fieldErrors: Partial<Record<Field, string>>;
   message: string | null;
+  // Under 13: the API removed the login; the form shows a friendly stop screen instead.
+  blocked?: string;
 };
 
 // Sign-up step 2: POST /me/profile through FastAPI. On success the user goes to their dashboard.
@@ -26,10 +46,21 @@ export async function createProfile(previous: DetailsState, formData: FormData):
   const isOrganization = values.account_type === "ORGANIZATION";
 
   // Plain-language "required" messages here; the API checks everything again.
-  const required: Field[] = ["full_name", "phone", "address", "area", ...(isOrganization ? (["org_name", "org_type"] as Field[]) : [])];
+  const age = values.date_of_birth ? ageOn(values.date_of_birth, lagosToday()) : null;
+  const isMinor = !isOrganization && age !== null && age >= MIN_AGE && age < ADULT_AGE;
+  const required: Field[] = [
+    "full_name",
+    "phone",
+    "address",
+    "area",
+    ...(isOrganization ? (["org_name", "org_type"] as Field[]) : (["date_of_birth"] as Field[])),
+    ...(isMinor ? (["guardian_name", "guardian_phone", "guardian_email"] as Field[]) : []),
+  ];
   const missing = Object.fromEntries(
     required.filter((field) => !values[field]).map((field) => [field, "Please fill this in."]),
   ) as DetailsState["fieldErrors"];
+  if (isOrganization && values.adult_confirmed !== "on") missing.adult_confirmed = "Please confirm you are 18 or older.";
+  if (isMinor && values.guardian_aware !== "on") missing.guardian_aware = "Please tick this to go on.";
   if (Object.keys(missing).length > 0) {
     return { attempt, values, fieldErrors: missing, message: "Some details are missing." };
   }
@@ -42,13 +73,35 @@ export async function createProfile(previous: DetailsState, formData: FormData):
       phone: values.phone,
       address: values.address,
       area: values.area,
+      marketing_opt_in: values.marketing_opt_in === "on",
       ...(isOrganization
-        ? { org_name: values.org_name, org_type: values.org_type || null, cac_number: values.cac_number || null }
+        ? {
+            org_name: values.org_name,
+            org_type: values.org_type || null,
+            cac_number: values.cac_number || null,
+            adult_confirmed: values.adult_confirmed === "on",
+          }
+        : { date_of_birth: values.date_of_birth }),
+      ...(isMinor
+        ? {
+            guardian_name: values.guardian_name,
+            guardian_phone: values.guardian_phone,
+            guardian_email: values.guardian_email,
+            guardian_aware: values.guardian_aware === "on",
+          }
         : {}),
     },
   });
 
-  if (result.ok || result.error.code === "PROFILE_EXISTS") redirect("/app");
+  if (!result.ok && result.error.code === "UNDER_13") {
+    // The API deleted this login; end the session here too.
+    await (await createClient()).auth.signOut();
+    return { attempt, values: {}, fieldErrors: {}, message: null, blocked: result.error.message };
+  }
+
+  // ?signup=1 becomes one signup_completed analytics event (only with analytics consent), then leaves the URL.
+  if (result.ok) redirect("/app?signup=1");
+  if (result.error.code === "PROFILE_EXISTS") redirect("/app");
 
   const fieldErrors: DetailsState["fieldErrors"] = {};
   if (result.error.code === "PHONE_TAKEN") fieldErrors.phone = result.error.message;

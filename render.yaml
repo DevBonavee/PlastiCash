@@ -65,6 +65,14 @@ services:
         value: mailto:ops@plasticash.app
       - key: FRONTEND_ORIGIN
         sync: false
+      - key: SITE_URL            # public web address, for links in emails and SMS
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: API_PUBLIC_URL      # https://<render-url>/api/v1, for one-click unsubscribe
+        sync: false
 
   # Redis-compatible store for rate limits and caches. Internal connections only (no public access).
   - type: keyvalue

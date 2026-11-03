@@ -32,6 +32,8 @@ class PriceIn(_Strict):
 
 class AdminWithdrawalOut(WithdrawalOut):
     user_name: str
+    # Minors: payouts must go to the guardian's account. True = the bank's account name doesn't match; review it.
+    guardian_name_mismatch: bool = False
 
 
 # ----- Stats -----
@@ -87,6 +89,9 @@ class UserRow(BaseModel):
     verified_picker: bool
     balance_kobo: int
     created_at: datetime
+    is_minor: bool = False
+    # NOT_REQUIRED, PENDING, GRANTED, DECLINED, or EXPIRED (PENDING with a dead link)
+    guardian_consent: str = "NOT_REQUIRED"
 
 
 class UserPatch(_Strict):

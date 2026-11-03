@@ -22,7 +22,9 @@ from app.config import get_settings
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Keep loggers that already exist: the tests run migrations in the same process as the app, and the default would
+    # silence every app logger created before this line (email, SMS and Paystack warnings).
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = SQLModel.metadata
 

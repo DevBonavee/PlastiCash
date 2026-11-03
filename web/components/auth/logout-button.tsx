@@ -4,6 +4,8 @@ import { LogOut } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { identify } from "@/lib/analytics";
+import { clearRuntimeCaches } from "@/lib/pwa";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +21,9 @@ export function LogoutButton({ compact = false, dark = false }: { compact?: bool
       toast.error("Couldn't log out. Please try again.");
       return;
     }
+    identify(null);
+    // Nothing from this session stays in the app's caches on a shared phone.
+    await clearRuntimeCaches().catch(() => undefined);
     // The login page shows the "You're logged out" toast and notice (from ?loggedOut=1).
     // Full page load, not router navigation: Next keeps visited pages alive in the background, and nothing
     // from the logged-in session (pages, form state, cached data) should survive a log-out.

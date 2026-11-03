@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import { PhoneInput } from "@/components/brand/phone-input";
 import { Btn, Card } from "@/components/brand/ui";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,16 +86,7 @@ export function ProfileForm({ me }: { me: Me }) {
           <Input id="full_name" name="full_name" autoComplete="name" defaultValue={me.full_name} aria-invalid={!!errors.full_name} />
         </Field>
         <Field id="phone" label="Phone number" hint="We text your pickup codes here." error={errors.phone}>
-          <Input
-            id="phone"
-            name="phone"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            defaultValue={me.phone}
-            aria-invalid={!!errors.phone}
-            className="tabular"
-          />
+          <PhoneInput id="phone" name="phone" defaultValue={me.phone} error={errors.phone} />
         </Field>
         <Field id="address" label="Street address" error={errors.address}>
           <Input id="address" name="address" autoComplete="street-address" defaultValue={me.address ?? ""} aria-invalid={!!errors.address} />
@@ -257,5 +249,47 @@ function Field({ id, label, hint, error, children }: { id: string; label: string
       {children}
       {(error || hint) && <p className={cn("text-sm", error ? "text-bad" : "text-muted-foreground")}>{error ?? hint}</p>}
     </div>
+  );
+}
+
+// Marketing email is opt-in. Pickup, withdrawal and password emails are separate and always sent.
+export function EmailPreferences({ optedIn }: { optedIn: boolean }) {
+  const router = useRouter();
+  const [on, setOn] = useState(optedIn);
+  const [pending, setPending] = useState(false);
+
+  async function toggle(next: boolean) {
+    setOn(next);
+    setPending(true);
+    const result = await updateProfile({ marketing_opt_in: next });
+    setPending(false);
+    if (!result.ok) {
+      setOn(!next);
+      return toast.error(result.error.message);
+    }
+    toast.success(next ? "You'll get tips, price updates and offers by email." : "No more marketing emails.");
+    router.refresh();
+  }
+
+  return (
+    <Card className="lg:col-span-2">
+      <h3 className="text-[17px] font-bold">Email preferences</h3>
+      <label className="flex min-h-11 cursor-pointer items-start justify-between gap-4">
+        <span>
+          <span className="block font-semibold">Tips, price updates and offers</span>
+          <span className="block text-sm text-muted-foreground">
+            A few emails a month at most. Emails about your pickups, withdrawals and password always come.
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          className="d-toggle d-toggle-primary mt-1"
+          checked={on}
+          disabled={pending}
+          onChange={(e) => toggle(e.target.checked)}
+        />
+      </label>
+    </Card>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Camera, CheckCircle2, Clock, Loader2, ShieldCheck, Smartphone } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle2, Clock, Loader2, ShieldCheck, Smartphone, WifiOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
@@ -18,6 +18,8 @@ import { createClient } from "@/lib/supabase/client";
 import type { Pickup } from "@/lib/types";
 import { photo, uploadPhoto } from "@/lib/upload";
 import { cn } from "@/lib/utils";
+import { track } from "@/lib/analytics";
+import { OFFLINE_ACTION, useOnline } from "@/lib/pwa";
 
 const LIVE: Pickup["status"][] = ["REQUESTED", "ASSIGNED", "EN_ROUTE", "AWAITING_CONFIRMATION", "DISPUTED"];
 const POLL_MS = 15_000;
@@ -200,6 +202,8 @@ function ConfirmOrDispute({ pickup }: { pickup: Pickup }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [disputing, setDisputing] = useState(false);
+  // Money actions are never queued for later: offline, the buttons are off.
+  const online = useOnline();
 
   async function confirm() {
     setPending(true);
@@ -207,6 +211,7 @@ function ConfirmOrDispute({ pickup }: { pickup: Pickup }) {
     setPending(false);
     setConfirming(false);
     if (!result.ok) return toast.error(result.error.message);
+    track("pickup_confirmed");
     toast.success(`You earned ${money(result.data.total_amount_kobo)}. It's in your wallet.`);
     router.refresh();
   }
@@ -225,12 +230,13 @@ function ConfirmOrDispute({ pickup }: { pickup: Pickup }) {
       </div>
       {!disputing ? (
         <>
-          <Btn block onClick={() => setConfirming(true)}>
+          <Btn block disabled={!online} onClick={() => setConfirming(true)}>
             <ShieldCheck className="size-5" aria-hidden /> Confirm and get paid
           </Btn>
-          <Btn block variant="danger" onClick={() => setDisputing(true)}>
+          <Btn block variant="danger" disabled={!online} onClick={() => setDisputing(true)}>
             <AlertTriangle className="size-5" aria-hidden /> Something&apos;s wrong
           </Btn>
+          {!online && <OfflineNote />}
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
             <Smartphone className="mt-0.5 size-3.5 shrink-0" aria-hidden />
             No data? Give the collector the 6-digit code we texted you instead.
@@ -259,6 +265,7 @@ function ConfirmOrDispute({ pickup }: { pickup: Pickup }) {
 }
 
 function DisputeForm({ pickup, onCancel }: { pickup: Pickup; onCancel: () => void }) {
+  const online = useOnline();
   const router = useRouter();
   const [reason, setReason] = useState(REASONS[0]);
   const [details, setDetails] = useState("");
@@ -287,6 +294,7 @@ function DisputeForm({ pickup, onCancel }: { pickup: Pickup; onCancel: () => voi
     setSending(false);
     setAsking(false);
     if (!result.ok) return toast.error(result.error.details?.errors?.[0]?.message ?? result.error.message);
+    track("pickup_disputed");
     toast.success("Sent for review. We'll compare both photos and get back to you.");
     router.refresh();
   }
@@ -322,10 +330,11 @@ function DisputeForm({ pickup, onCancel }: { pickup: Pickup; onCancel: () => voi
         <Btn variant="outline" className="w-28" onClick={onCancel}>
           Back
         </Btn>
-        <Btn variant="danger" className="flex-1" disabled={!ready || sending} onClick={() => setAsking(true)}>
+        <Btn variant="danger" className="flex-1" disabled={!ready || sending || !online} onClick={() => setAsking(true)}>
           Send for review
         </Btn>
       </div>
+      {!online && <OfflineNote />}
       <ConfirmDialog
         open={asking}
         onOpenChange={setAsking}
@@ -371,5 +380,13 @@ function CancelCard({ pickup }: { pickup: Pickup }) {
         tone="danger"
       />
     </>
+  );
+}
+
+function OfflineNote() {
+  return (
+    <p role="status" className="flex items-center gap-2 text-sm font-semibold text-warn">
+      <WifiOff className="size-4" aria-hidden /> {OFFLINE_ACTION}
+    </p>
   );
 }

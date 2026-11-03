@@ -19,7 +19,7 @@ from app.models import Material, Pickup, PickupStatus, Price, Profile, Role, Wit
 from app.pickup_schemas import AdminBoardOut, AdminPickupOut, AreaTotal, AssignIn, CancelIn, ResolveIn
 from app.schemas import PriceOut, RejectBody, WithdrawalOut
 from app.schemas import display_name
-from app.services import paystack, pickups, stats, withdrawals
+from app.services import guardian, paystack, pickups, stats, withdrawals
 from app.services.pickup_state import transition
 from app.services.paystack import PaystackError
 
@@ -49,8 +49,12 @@ async def withdrawal_queue(session: SessionDep, status: WithdrawalStatus | None 
     rows = (await session.exec(query)).all()
     people = await pickups.names(session, {w.user_id for w in rows})
     return [
-        AdminWithdrawalOut(**WithdrawalOut.from_withdrawal(w).model_dump(),
-                           user_name=display_name(people[w.user_id]) or people[w.user_id].full_name)
+        AdminWithdrawalOut(
+            **WithdrawalOut.from_withdrawal(w).model_dump(),
+            user_name=display_name(people[w.user_id]) or people[w.user_id].full_name,
+            guardian_name_mismatch=people[w.user_id].is_minor
+            and guardian.names_differ(people[w.user_id].guardian_name, w.account_name),
+        )
         for w in rows
     ]
 

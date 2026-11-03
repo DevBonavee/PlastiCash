@@ -2,22 +2,15 @@
 
 import { WifiOff } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 
-function subscribe(onChange: () => void) {
-  window.addEventListener("online", onChange);
-  window.addEventListener("offline", onChange);
-  return () => {
-    window.removeEventListener("online", onChange);
-    window.removeEventListener("offline", onChange);
-  };
-}
+import { useOnline } from "@/lib/pwa";
 
 // Thin banner while the phone has no connection (DESIGN_BRIEF.md §13), and a refresh of the page's data when it
 // comes back. Server render assumes online.
 export function OfflineBanner() {
   const router = useRouter();
-  const online = useSyncExternalStore(subscribe, () => navigator.onLine, () => true);
+  const online = useOnline();
   useEffect(() => {
     const retry = () => router.refresh();
     window.addEventListener("online", retry);

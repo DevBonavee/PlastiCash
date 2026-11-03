@@ -11,7 +11,7 @@ from app.db import get_session
 from app.errors import ApiError
 from app.models import AccountType, LedgerEntry, Withdrawal
 from app.schemas import ImpactOut, LedgerEntryOut, WalletOut, WithdrawalCreate, WithdrawalOut, points
-from app.services import esg, impact, ledger, withdrawals
+from app.services import esg, guardian, impact, ledger, withdrawals
 from app.services.pickups import lagos_today
 from app.ratelimit import HOUR, rate_limit
 
@@ -51,6 +51,7 @@ async def get_wallet(
     dependencies=[Depends(rate_limit("withdraw", 5, HOUR))],
 )
 async def request_withdrawal(body: WithdrawalCreate, me: UserProfile, session: SessionDep) -> WithdrawalOut:
+    guardian.require_consent(me)
     withdrawal = await withdrawals.request_withdrawal(session, me.id, body.amount_kobo)
     await session.commit()
     return WithdrawalOut.from_withdrawal(withdrawal)

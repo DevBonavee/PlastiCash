@@ -9,13 +9,14 @@ import { ENUGU, PinPicker } from "@/components/app/maps";
 import { Btn, Card, Money, Stepper } from "@/components/brand/ui";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createPickup } from "@/lib/actions";
+import { createPickup, updateProfile } from "@/lib/actions";
 import { AREAS } from "@/lib/areas";
 import { kg, WINDOW_LABEL } from "@/lib/format";
 import { HUB } from "@/lib/site";
 import { MATERIALS, type CurrentPrice, type Estimate, type Material } from "@/lib/types";
 import { photo as resized, uploadPhoto } from "@/lib/upload";
 import { cn } from "@/lib/utils";
+import { track } from "@/lib/analytics";
 
 const STEPS = ["Materials", "Estimate", "Photo", "Place and time", "Review"];
 const API = process.env.NEXT_PUBLIC_API_URL!;
@@ -34,7 +35,8 @@ export function RequestForm({
   defaults,
 }: {
   prices: CurrentPrice[];
-  defaults: { address: string; area: string };
+  // The saved pickup address from the dashboard bar; changes here are for this pickup only unless "save" is ticked.
+  defaults: { address: string; area: string; lat: number | null; lng: number | null };
 }) {
   const router = useRouter();
   const priceOf = (m: Material) => prices.find((p) => p.material === m);
@@ -48,7 +50,10 @@ export function RequestForm({
   const [choice, setChoice] = useState<"pool" | "hub" | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [pin, setPin] = useState<[number, number]>(ENUGU);
+  const [pin, setPin] = useState<[number, number]>(
+    defaults.lat !== null && defaults.lng !== null ? [defaults.lat, defaults.lng] : ENUGU,
+  );
+  const [saveDefault, setSaveDefault] = useState(false);
   const [address, setAddress] = useState(defaults.address);
   const [area, setArea] = useState(defaults.area);
   const [date, setDate] = useState(lagosToday());
@@ -94,6 +99,12 @@ export function RequestForm({
   }, [items]);
 
   const underMinimum = estimate !== null && !estimate.meets_door_minimum;
+  const changedPlace =
+    address.trim() !== defaults.address ||
+    area !== defaults.area ||
+    defaults.lat === null ||
+    pin[0].toFixed(6) !== defaults.lat.toFixed(6) ||
+    pin[1].toFixed(6) !== (defaults.lng ?? 0).toFixed(6);
 
   function toggle(m: Material) {
     setSelected((s) => (s.includes(m) ? s.filter((x) => x !== m) : [...s, m]));
@@ -154,7 +165,18 @@ export function RequestForm({
       toast.error(fieldError ? `${result.error.message} ${fieldError}` : result.error.message);
       return;
     }
+    track("pickup_requested");
     toast.success(result.data.pooled ? "Added to your area's next pickup day." : "Pickup requested. We'll assign a collector.");
+    if (saveDefault) {
+      const saved = await updateProfile({
+        address: address.trim(),
+        area,
+        lat: Number(pin[0].toFixed(6)),
+        lng: Number(pin[1].toFixed(6)),
+      });
+      if (saved.ok) toast.success("Saved as your pickup address.");
+      else toast.error(`The pickup is sent, but the address wasn't saved: ${saved.error.message}`);
+    }
     router.push(`/app/pickups/${result.data.id}`);
   }
 
@@ -330,6 +352,17 @@ export function RequestForm({
                 ))}
               </select>
             </div>
+            {changedPlace && (
+              <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  className="d-checkbox d-checkbox-primary"
+                  checked={saveDefault}
+                  onChange={(e) => setSaveDefault(e.target.checked)}
+                />
+                Save as my default address
+              </label>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="date">Day</Label>

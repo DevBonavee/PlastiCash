@@ -17,6 +17,7 @@ Conventions: `id` is UUID (`gen_random_uuid()`), timestamps are `timestamptz` de
 - `ledger_type`: `PICKUP_CREDIT`, `WITHDRAWAL_HOLD`, `WITHDRAWAL_REVERSAL`, `ADJUSTMENT`
 - `withdrawal_status`: `PENDING`, `PROCESSING`, `PAID`, `FAILED`, `REJECTED`
 - `bale_status`: `IN_STORE`, `PROCESSED`, `SOLD`
+- `guardian_consent`: `NOT_REQUIRED`, `PENDING`, `GRANTED`, `DECLINED` (added 3 Nov 2026)
 
 ## 1. `profiles`
 
@@ -35,10 +36,22 @@ One row per Supabase Auth user. `id` = `auth.users.id`.
 | email | text | copy of auth email |
 | address | text null | |
 | area | text null | from the fixed list of Enugu areas (see seed) |
+| lat, lng | numeric(9,6) null | saved pickup pin (added 3 Nov 2026). Set from the dashboard "Pickup address" bar or "Save as my default address" on a request; prefilled on `/app/request`. Both or neither; cleared when the street or area changes without a new pin |
 | bank_name, bank_code, account_number, account_name | text null | set after `/bank/resolve` check |
 | paystack_recipient_code | text null | created when bank details are saved |
 | verified_picker | bool default false | admin badge |
 | is_active | bool default true | admin can deactivate |
+| date_of_birth | date null | individuals, from sign-up step 2 (added 3 Nov 2026). Under 13: no account (the Supabase login is deleted) |
+| is_minor | bool default false | 13 to 17 at sign-up (NDPA 2023: under 18 is a child) |
+| guardian_name, guardian_phone, guardian_email | text null | minors only; phone stored as +234… |
+| guardian_consent_status | guardian_consent default `NOT_REQUIRED` | minors start `PENDING`; until `GRANTED` they can't request pickups, save bank details or withdraw (API 403 `GUARDIAN_CONSENT_REQUIRED`) |
+| guardian_consent_at | timestamptz null | when the guardian answered |
+| guardian_token_hash | text null, unique where not null | sha256 of the single-use consent link token; cleared once used |
+| guardian_token_expires_at | timestamptz null | 7 days after the link is sent |
+| guardian_link_sends | int default 0 | links sent; the first plus up to 3 resends |
+| marketing_opt_in | bool default false | marketing email, opt-in (unticked at sign-up; settings toggle; added 3 Nov 2026) |
+| marketing_opt_in_at | timestamptz null | when they last opted in; null when opted out |
+| unsubscribe_token | text unique null | key in the one-click unsubscribe link and List-Unsubscribe header; made on first opt-in |
 | created_at | timestamptz | |
 
 Display name for greeting: `org_name` if ORGANIZATION, else first word of `full_name`.

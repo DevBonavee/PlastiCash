@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     door_min_kg: int = 50
     auto_confirm_hours: int = 48
     sms_enabled: bool = False
+    # Email through Resend; empty key = log "email would send" without the content.
+    resend_api_key: str = ""
+    email_from: str = "PlastiCash <hello@plasticash.app>"
+    # Public site address for links in emails and SMS (guardian consent, unsubscribe).
+    site_url: str = "http://localhost:3000"
+    # This API's public base URL, for the one-click List-Unsubscribe header (mail apps POST to it directly).
+    api_public_url: str = "http://localhost:8000/api/v1"
+    # Sender's postal address in every marketing email (same as the site's hub address).
+    hub_address: str = "21A Off Umuawulu, by Ugwuaji, Enugu/PH Expressway, Enugu"
 
     seed_password: str = ""  # scripts/seed.py only: password for the demo Supabase Auth accounts
 

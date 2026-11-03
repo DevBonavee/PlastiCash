@@ -1,18 +1,32 @@
 import { Suspense } from "react";
 
+import { AddressBar } from "@/components/app/address-bar";
+import { InstallCard } from "@/components/app/install-card";
 import { ActivePickupCard, activePickup, ImpactStats, RecentActivity, RequestCta, WalletCard } from "@/components/app/dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { get } from "@/lib/api";
+import { loadMe } from "@/lib/me";
 import type { Impact, Pickup, Wallet } from "@/lib/types";
 
 export default function UserHome() {
   return (
     <main className="flex flex-1 flex-col gap-5 p-4 lg:p-8">
+      <Suspense fallback={<Skeleton className="h-[66px] rounded-2xl" aria-label="Loading your pickup address" />}>
+        <SavedAddress />
+      </Suspense>
+      <InstallCard />
       <Suspense fallback={<DashboardSkeleton />}>
         <Dashboard />
       </Suspense>
     </main>
   );
+}
+
+async function SavedAddress() {
+  const state = await loadMe();
+  if (state.kind !== "ok") return null;
+  const { address, area, lat, lng } = state.me;
+  return <AddressBar saved={{ address, area, lat, lng }} />;
 }
 
 async function Dashboard() {

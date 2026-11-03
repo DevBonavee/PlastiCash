@@ -4,6 +4,7 @@ import { BadgeCheck, UserPlus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { ConfirmDialog } from "@/components/brand/confirm-dialog";
+import { PhoneInput } from "@/components/brand/phone-input";
 import { Btn } from "@/components/brand/ui";
 import { Field, nairaToKobo, selectClass, useAdminAction } from "@/components/ops/ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,6 +19,14 @@ import { cn } from "@/lib/utils";
 const ROLE_LABEL: Record<Role, string> = { USER: "Customer", COLLECTOR: "Collector", ADMIN: "Admin" };
 
 type Pending = { kind: "active" | "role" | "adjust"; user: UserRow } | null;
+
+const CONSENT_LABEL: Record<UserRow["guardian_consent"], string> = {
+  NOT_REQUIRED: "no consent needed",
+  PENDING: "waiting for guardian",
+  GRANTED: "guardian approved",
+  DECLINED: "guardian declined",
+  EXPIRED: "link expired",
+};
 
 export function UsersTable({ rows, meId }: { rows: UserRow[]; meId: string }) {
   const [open, setOpen] = useState<Pending>(null);
@@ -53,6 +62,16 @@ export function UsersTable({ rows, meId }: { rows: UserRow[]; meId: string }) {
                   </b>
                   {u.name !== u.full_name && <span className="text-xs text-muted-foreground">{u.full_name}</span>}
                   {!u.is_active && <span className="ml-1 rounded bg-bad-soft px-1.5 py-0.5 text-[11px] font-bold text-bad">Deactivated</span>}
+                  {u.is_minor && (
+                    <span
+                      className={cn(
+                        "ml-1 rounded px-1.5 py-0.5 text-[11px] font-bold",
+                        u.guardian_consent === "GRANTED" ? "bg-mint text-primary" : "bg-bad-soft text-bad",
+                      )}
+                    >
+                      Under 18 · {CONSENT_LABEL[u.guardian_consent]}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell>{ROLE_LABEL[u.role]}</TableCell>
                 <TableCell className="text-sm">
@@ -255,7 +274,7 @@ export function CreateCollector() {
               <Input id="c-email" name="email" type="email" required autoComplete="off" />
             </Field>
             <Field id="c-phone" label="Phone" error={errors.phone}>
-              <Input id="c-phone" name="phone" type="tel" placeholder="0803 123 4567" required />
+              <PhoneInput id="c-phone" name="phone" error={errors.phone} required />
             </Field>
             <Field id="c-area" label="Usual area" error={errors.area}>
               <select id="c-area" name="area" defaultValue="" className={selectClass}>

@@ -5,24 +5,26 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
+import { PhoneInput } from "@/components/brand/phone-input";
 import { Btn, Card } from "@/components/brand/ui";
 import { OtpStep } from "@/components/collector/otp-step";
 import { WeighForm } from "@/components/collector/weigh-form";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { findCustomer, walkIn } from "@/lib/actions";
+import { PHONE_ERROR } from "@/lib/phone";
 import type { CollectorPickup, CurrentPrice, WeighItemIn } from "@/lib/types";
 
 export function WalkInFlow({ prices }: { prices: CurrentPrice[] }) {
   const [customer, setCustomer] = useState<{ id: string; name: string } | null>(null);
   const [job, setJob] = useState<CollectorPickup | null>(null);
   const [smsSent, setSmsSent] = useState<boolean | null>(null);
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function search(event: FormEvent) {
     event.preventDefault();
+    if (!phone) return setError(PHONE_ERROR);
     setPending(true);
     const result = await findCustomer(phone);
     setPending(false);
@@ -82,18 +84,17 @@ export function WalkInFlow({ prices }: { prices: CurrentPrice[] }) {
     <Card>
       <form onSubmit={search} className="flex flex-col gap-3" noValidate>
         <Label htmlFor="phone">Customer&apos;s phone number</Label>
-        <Input
+        <PhoneInput
           id="phone"
-          type="tel"
-          inputMode="tel"
-          placeholder="0803 123 4567"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          aria-invalid={!!error}
-          className="tabular h-14 text-xl"
+          onValueChange={(next) => {
+            setPhone(next);
+            setError(null);
+          }}
+          error={error ?? undefined}
+          className="h-14 text-xl"
         />
         {error && <p className="text-sm font-semibold text-bad">{error}</p>}
-        <Btn type="submit" variant="primary" block className="d-btn-collector" disabled={!phone.trim() || pending}>
+        <Btn type="submit" variant="primary" block className="d-btn-collector" disabled={!phone || pending}>
           {pending ? "Searching…" : "Find customer"}
         </Btn>
       </form>
