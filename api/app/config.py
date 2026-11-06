@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     termii_sender_id: str = ""
     termii_base_url: str = ""
 
+    # NIPOST postcode API, tried first for "Use my location"; empty = off. Secret: server only (app/services/geocoding.py).
+    postcode_api_key: str = ""
+    postcode_base_url: str = "https://api.postcode.gov.ng"
     # Public server by default; its usage policy limits how we call it (app/services/geocoding.py).
     nominatim_base_url: str = "https://nominatim.openstreetmap.org"
     nominatim_user_agent: str = "PlastiCash/1.0 (ops@plasticash.app)"

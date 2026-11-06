@@ -1,6 +1,11 @@
-"""Coordinates to a street and area, through the public Nominatim server (OpenStreetMap).
+"""Coordinates to a street and area: NIPOST's postcode API first when POSTCODE_API_KEY is set, then the public Nominatim
+server (OpenStreetMap) for whatever is still missing, or for everything without a key.
 
-Its usage policy (https://operations.osmfoundation.org/policies/nominatim/) binds this file: at most 1 request per
+NIPOST (https://docs.postcode.gov.ng/api-reference/reverse-geocode) returns names and addresses only for keys granted
+lookup level 2 or above, which needs a live key and credits; below that it gives a postcode, which we don't use. Any
+trouble with it falls through to Nominatim, because the address form should still fill in.
+
+Nominatim's usage policy (https://operations.osmfoundation.org/policies/nominatim/) binds this file: at most 1 request per
 second across the whole app, a User-Agent that identifies us, results cached, attribution shown (the map beside the
 button credits OpenStreetMap), no systematic queries (one lookup per tap on "Use my location", never on a pin drag or a
 timer), and it asks for no personal data. So calls go through this server only, carrying nothing about the user, with
@@ -29,6 +34,7 @@ MAX_QUEUE_SECONDS = 5.0
 REQUEST_TIMEOUT_SECONDS = 8.0
 CACHE_TTL_SECONDS = 7 * 86400
 PRECISION = 4  # decimal places: about 11 m
+NIPOST_REVERSE_PATH = "/v1/search/reverse"
 
 _AREA_BY_NAME = {area.casefold(): area for area in AREAS}
 # Where OpenStreetMap may put a place the size of our areas, most specific first.
@@ -76,9 +82,60 @@ async def _ask_nominatim(lat: float, lng: float) -> dict:
     return response.json()
 
 
+def _nipost_place(payload: dict) -> Place:
+    """The full unit address when it has one, since NIPOST gives it as one line. A low-confidence unit is too far off."""
+    data = payload.get("data") or {}
+    unit = data.get("unit") or {}
+    if not data.get("found") or unit.get("confidence") == "low":
+        return Place(street=None, area=None)
+    area = _AREA_BY_NAME.get(str(unit.get("locality_name", "")).casefold())
+    return Place(street=unit.get("address") or None, area=area)
+
+
+async def _from_nipost(lat: float, lng: float) -> Place:
+    """Never raises: a refusal (no credits, no scope, rate limit) or an outage just leaves it to Nominatim, uncached."""
+    settings = get_settings()
+    key = f"geocode:nipost:{lat}:{lng}"
+    cached = await cache_get(key)
+    if cached is not None:
+        return Place(**cached)
+    try:
+        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
+            response = await client.get(
+                f"{settings.postcode_base_url.rstrip('/')}{NIPOST_REVERSE_PATH}",
+                params={"lat": lat, "lng": lng},
+                headers={"X-API-Key": settings.postcode_api_key},
+            )
+        response.raise_for_status()
+        place = _nipost_place(response.json())
+    except httpx.HTTPStatusError as error:
+        log.warning("NIPOST postcode API refused a lookup: HTTP %s", error.response.status_code)
+        return Place(street=None, area=None)
+    except (httpx.HTTPError, ValueError) as error:
+        log.warning("NIPOST postcode API failed: %s", type(error).__name__)
+        return Place(street=None, area=None)
+    await cache_set(key, place._asdict(), CACHE_TTL_SECONDS)
+    return place
+
+
 async def reverse(lat: float, lng: float) -> Place:
-    global _last_request
     lat, lng = round(lat, PRECISION), round(lng, PRECISION)
+    if not get_settings().postcode_api_key:
+        return await _from_nominatim(lat, lng)
+    nipost = await _from_nipost(lat, lng)
+    if nipost.street and nipost.area:
+        return nipost
+    try:
+        nominatim = await _from_nominatim(lat, lng)
+    except GeocodingUnavailable:
+        if nipost.street or nipost.area:
+            return nipost
+        raise
+    return Place(street=nipost.street or nominatim.street, area=nipost.area or nominatim.area)
+
+
+async def _from_nominatim(lat: float, lng: float) -> Place:
+    global _last_request
     key = f"geocode:{lat}:{lng}"
     cached = await cache_get(key)
     if cached is not None:

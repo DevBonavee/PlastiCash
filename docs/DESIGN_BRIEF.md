@@ -222,7 +222,7 @@ Three carousels appear in the mockup. All of them follow these rules:
 | Where | Behaviour |
 |---|---|
 | **Landing hero** (`/`, laptop) | Three slides, cross-fade, auto-advance every 5 s, prev/next arrows + dots. Each slide pairs a headline with a photo. Built 13 Oct 2026: photos and headlines are managed by admins in `/ops-portal/hero` (brand slides until photos exist); the carousel takes the place of the price board, and prices stay in the section below |
-| **Landing hero** (`/`, phone) | Photo-only carousel above the headline, auto-advance 4.5 s |
+| **Landing hero** (`/`, phone) | Photo-only carousel below the headline and buttons, auto-advance 4.5 s |
 | **Sign-up** (`/signup`, laptop) | Full-height photo panel, 3 slides with headline + one line, auto-advance 4.5 s |
 | **Welcome** (`/welcome`, phone, first visit only) | Three swipeable slides with a bottom sheet: copy, dots, **Skip** and **Next**. The last slide's button says **Get started** |
 | **Stories from Enugu** (`/`) | Horizontal scroll-snap row of 380 px story cards with arrow buttons; no auto-advance |

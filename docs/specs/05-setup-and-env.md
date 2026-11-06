@@ -31,6 +31,8 @@ SUPABASE_JWT_SECRET=                          # only if the project uses legacy 
 SUPABASE_SERVICE_ROLE_KEY=                    # server only: creating collector accounts
 PAYSTACK_SECRET_KEY=sk_test_...
 PAYSTACK_FAKE_TRANSFERS=false  # local testing only: approve = PAID without Paystack; refused with sk_live_
+POSTCODE_API_KEY=                             # NIPOST postcode API (dashboard.postcode.gov.ng); empty = off. Street names need lookup level 2+
+POSTCODE_BASE_URL=https://api.postcode.gov.ng
 NOMINATIM_BASE_URL=https://nominatim.openstreetmap.org   # street lookup; no key, usage policy limits apply
 NOMINATIM_USER_AGENT=PlastiCash/1.0 (ops@plasticash.app)
 CLOUDINARY_CLOUD_NAME=

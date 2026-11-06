@@ -9,6 +9,7 @@ import respx
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.config import get_settings
 from app.services import geocoding
 from tests.factories import make_user
 from tests.tokens import bearer
@@ -184,3 +185,131 @@ async def test_service_trouble_is_a_clean_503(client: AsyncClient, session: Asyn
     assert response.status_code == 503
     assert response.json()["code"] == "GEOCODE_UNAVAILABLE"
     assert fresh_geocoder == {}  # a failure must not be remembered as "nothing here"
+
+
+# ----- NIPOST postcode API, used first when POSTCODE_API_KEY is set -----
+
+NIPOST = "https://api.postcode.gov.ng/v1/search/reverse"
+
+
+def nipost_unit(**unit) -> dict:
+    """The response shape from the API's OpenAPI schema; the docs give no example for this endpoint."""
+    return {"data": {
+        "found": True,
+        "coordinate": [7.5139, 6.4483],
+        "unit": {"postcode": "EN-01-A03-FK-01", "display": "EN 01 A03 FK 01", "distance_m": 8, "confidence": "high", **unit},
+        "area": "EN-01-A03-FK",
+        "district": "EN-01-A03",
+        "state": "EN",
+        "radius_m": 25,
+    }}
+
+
+LEVEL_2 = {"state_name": "ENUGU", "lga_name": "ENUGU NORTH", "locality_name": "GRA", "address": "4 OKPARA AVENUE, GRA"}
+
+
+@pytest.fixture
+def nipost_key(monkeypatch):
+    monkeypatch.setattr(get_settings(), "postcode_api_key", "nipost_test_abc")
+
+
+@respx.mock
+async def test_without_a_key_nipost_is_never_called(client: AsyncClient, session: AsyncSession):
+    nipost = respx.get(NIPOST).respond(200, json=nipost_unit(**LEVEL_2))
+    respx.get(NOMINATIM).respond(200, json=ENUGU)
+    response = await reverse(client, session)
+    assert response.json()["street"] == "Independence Avenue"
+    assert not nipost.called
+
+
+@respx.mock
+@pytest.mark.usefixtures("nipost_key")
+async def test_nipost_answer_is_used_without_asking_nominatim(client: AsyncClient, session: AsyncSession):
+    nipost = respx.get(NIPOST).respond(200, json=nipost_unit(**LEVEL_2))
+    nominatim = respx.get(NOMINATIM).respond(200, json=ENUGU)
+    response = await reverse(client, session, lat="6.448312", lng="7.513987")
+    assert response.json() == {"street": "4 OKPARA AVENUE, GRA", "area": "GRA"}
+    assert not nominatim.called
+    request = nipost.calls.last.request
+    assert request.headers["x-api-key"] == "nipost_test_abc"
+    assert dict(request.url.params) == {"lat": "6.4483", "lng": "7.514"}
+
+
+@respx.mock
+@pytest.mark.usefixtures("nipost_key")
+async def test_a_free_key_without_names_falls_back_to_nominatim(client: AsyncClient, session: AsyncSession):
+    respx.get(NIPOST).respond(200, json=nipost_unit())  # below level 2: postcode only
+    respx.get(NOMINATIM).respond(200, json=ENUGU)
+    response = await reverse(client, session)
+    assert response.json() == {"street": "Independence Avenue", "area": "Independence Layout"}
+
+
+@respx.mock
+@pytest.mark.usefixtures("nipost_key")
+async def test_nominatim_fills_only_what_nipost_left_out(client: AsyncClient, session: AsyncSession):
+    respx.get(NIPOST).respond(200, json=nipost_unit(locality_name="ENUGU", address="4 OKPARA AVENUE"))
+    respx.get(NOMINATIM).respond(200, json=ENUGU)
+    response = await reverse(client, session)
+    assert response.json() == {"street": "4 OKPARA AVENUE", "area": "Independence Layout"}
+
+
+@respx.mock
+@pytest.mark.usefixtures("nipost_key")
+async def test_a_low_confidence_unit_is_ignored(client: AsyncClient, session: AsyncSession):
+    respx.get(NIPOST).respond(200, json=nipost_unit(**LEVEL_2, confidence="low"))
+    respx.get(NOMINATIM).respond(200, json=ENUGU)
+    response = await reverse(client, session)
+    assert response.json()["street"] == "Independence Avenue"
+
+
+@respx.mock
+@pytest.mark.usefixtures("nipost_key")
+async def test_no_unit_nearby_falls_back_and_is_cached(client: AsyncClient, session: AsyncSession):
+    nipost = respx.get(NIPOST).respond(200, json={"data": {"found": False, "message": "no unit", "radius_m": 25}})
+    respx.get(NOMINATIM).respond(200, json=ENUGU)
+    user = await make_user(session)
+    for _ in range(2):
+        response = await client.post("/api/v1/geocode/reverse", json={"lat": 6.4483, "lng": 7.5139}, headers=bearer(user.id))
+    assert response.json()["street"] == "Independence Avenue"
+    assert nipost.call_count == 1
+
+
+@respx.mock
+@pytest.mark.usefixtures("nipost_key")
+@pytest.mark.parametrize("status", [401, 402, 403, 429, 500])
+async def test_nipost_trouble_falls_back_and_is_not_cached(client: AsyncClient, session: AsyncSession, status: int):
+    nipost = respx.get(NIPOST).respond(status, json={"error": {"code": "x", "message": "y"}})
+    respx.get(NOMINATIM).respond(200, json=ENUGU)
+    user = await make_user(session)
+    for _ in range(2):
+        response = await client.post("/api/v1/geocode/reverse", json={"lat": 6.4483, "lng": 7.5139}, headers=bearer(user.id))
+        assert response.status_code == 200
+    assert response.json()["street"] == "Independence Avenue"
+    assert nipost.call_count == 2
+
+
+@respx.mock
+@pytest.mark.usefixtures("nipost_key")
+async def test_nipost_network_failure_falls_back(client: AsyncClient, session: AsyncSession):
+    respx.get(NIPOST).mock(side_effect=httpx.ConnectTimeout("slow"))
+    respx.get(NOMINATIM).respond(200, json=ENUGU)
+    assert (await reverse(client, session)).json()["street"] == "Independence Avenue"
+
+
+@respx.mock
+@pytest.mark.usefixtures("nipost_key")
+async def test_nipost_answer_survives_nominatim_being_down(client: AsyncClient, session: AsyncSession):
+    respx.get(NIPOST).respond(200, json=nipost_unit(locality_name="ENUGU", address="4 OKPARA AVENUE"))
+    respx.get(NOMINATIM).respond(503)
+    response = await reverse(client, session)
+    assert response.status_code == 200
+    assert response.json() == {"street": "4 OKPARA AVENUE", "area": None}
+
+
+@respx.mock
+@pytest.mark.usefixtures("nipost_key")
+async def test_both_down_is_a_503(client: AsyncClient, session: AsyncSession):
+    respx.get(NIPOST).respond(500)
+    respx.get(NOMINATIM).respond(503)
+    response = await reverse(client, session)
+    assert response.status_code == 503

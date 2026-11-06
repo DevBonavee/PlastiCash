@@ -126,7 +126,7 @@ export default function LandingPage() {
                 </a>
               </div>
             </div>
-            <div className="order-first lg:order-none">
+            <div>
               <Suspense
                 fallback={
                   <Skeleton className="aspect-[5/4] w-full rounded-3xl bg-white/10" />
