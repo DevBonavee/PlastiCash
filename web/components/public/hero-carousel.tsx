@@ -47,7 +47,7 @@ export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
     <section
       aria-roledescription="carousel"
       aria-label="PlastiCash in Enugu"
-      className="relative aspect-[5/4] w-full overflow-hidden rounded-3xl border border-white/15 bg-white/5 shadow-raised"
+      className="relative aspect-[3/2] w-full overflow-hidden lg:aspect-[5/4] rounded-3xl border border-white/15 bg-white/5 shadow-raised"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -81,7 +81,7 @@ export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
             <img
               src={cloudinaryWidth(current.image_url, 1000)}
               srcSet={`${cloudinaryWidth(current.image_url, 600)} 600w, ${cloudinaryWidth(current.image_url, 1000)} 1000w`}
-              sizes="(min-width: 1024px) 560px, 100vw"
+              sizes="(min-width: 1024px) 480px, (min-width: 640px) 512px, 100vw"
               alt={current.headline}
               className="pointer-events-none h-full w-full object-cover select-none"
               fetchPriority={index === 0 ? "high" : "auto"}
@@ -89,16 +89,16 @@ export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
             />
           ) : (
             <div className="grid h-full w-full place-items-center bg-[radial-gradient(circle_at_30%_20%,#16A34A_0%,#14532D_45%,#052E16_100%)]">
-              {placeholder && <placeholder.icon className="size-28 text-white/25" strokeWidth={1.4} aria-hidden />}
+              {placeholder && <placeholder.icon className="size-20 text-white/25" strokeWidth={1.4} aria-hidden />}
             </div>
           )}
           {/* Forest gradient from the bottom keeps the caption readable on any photo (§10). */}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#052E16]/95 via-[#052E16]/60 to-transparent px-6 pt-20 pb-14">
-            <p className="font-display text-2xl leading-tight font-extrabold tracking-[-0.03em] text-white lg:text-3xl">
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#052E16]/95 via-[#052E16]/60 to-transparent px-5 pt-12 pb-13">
+            <p className="font-display text-lg leading-tight font-extrabold tracking-[-0.03em] text-white lg:text-2xl">
               {current?.headline ?? placeholder!.headline}
             </p>
             {(current?.subline ?? placeholder?.subline) && (
-              <p className="mt-1.5 text-sm text-[#DCFCE7] lg:text-base">{current?.subline ?? placeholder!.subline}</p>
+              <p className="mt-1 text-[13px] text-[#DCFCE7] lg:text-sm">{current?.subline ?? placeholder!.subline}</p>
             )}
           </div>
         </m.div>

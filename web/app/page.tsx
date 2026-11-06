@@ -97,17 +97,17 @@ export default function LandingPage() {
               "linear-gradient(160deg, #052E16 0%, #14532D 55%, #166534 100%)",
           }}
         >
-          <div className="container-site grid items-center gap-10 pt-6 pb-16 lg:grid-cols-[1.1fr_1fr] lg:pt-14 lg:pb-24 xl:grid-cols-[1fr_1.1fr] xl:gap-16 xl:pt-16 xl:pb-28 2xl:gap-24">
+          <div className="container-site grid items-center gap-8 pt-6 pb-12 lg:grid-cols-[1.1fr_1fr] lg:pt-14 lg:pb-24 xl:grid-cols-[1fr_1.1fr] xl:gap-16 xl:pt-16 xl:pb-28 2xl:gap-24">
             {/* Hero shows at once (no fade): it holds the largest text and image, so fading would delay LCP. */}
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-5">
               <span className="eyebrow text-[#86EFAC]">
                 Enugu · by EcoCyclers
               </span>
-              <h1 className="font-display text-[44px] !text-white leading-[1.02] font-extrabold tracking-[-0.04em] lg:text-[72px] 2xl:text-[84px]">
+              <h1 className="font-display text-[34px] !text-white leading-[1.05] font-extrabold tracking-[-0.04em] lg:text-[56px] 2xl:text-[64px]">
                 Your plastic <br className="hidden sm:block" />
                 na <span className="text-gold">money.</span>
               </h1>
-              <p className="max-w-xl text-lg text-[#DCFCE7]">
+              <p className="max-w-xl text-base text-[#DCFCE7] lg:text-lg">
                 Gather bottles, cans and sachets. A verified EcoCyclers
                 collector weighs them in front of you, you confirm the weight,
                 and the points land in your wallet. 1 point = ₦1, withdrawn to
@@ -117,19 +117,19 @@ export default function LandingPage() {
                 <Link
                   href="/signup"
                   prefetch={false}
-                  className="d-btn d-btn-accent d-btn-lg"
+                  className="d-btn d-btn-accent"
                 >
                   Start earning <ArrowRight className="size-5" aria-hidden />
                 </Link>
-                <a href="#prices" className="d-btn d-btn-glass d-btn-lg">
+                <a href="#prices" className="d-btn d-btn-glass">
                   See today&apos;s prices
                 </a>
               </div>
             </div>
-            <div>
+            <div className="w-full max-w-lg lg:max-w-[480px] lg:justify-self-end">
               <Suspense
                 fallback={
-                  <Skeleton className="aspect-[5/4] w-full rounded-3xl bg-white/10" />
+                  <Skeleton className="aspect-[3/2] w-full rounded-3xl bg-white/10 lg:aspect-[5/4]" />
                 }
               >
                 <HeroSlides />

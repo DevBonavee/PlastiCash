@@ -114,7 +114,7 @@ All three are free (SIL Open Font License). They are self-hosted: `next/font/loc
 
 | Style | Phone | Laptop |
 |---|---|---|
-| Landing hero | 40 / 0.98 | 84 / 0.95 |
+| Landing hero | 34 / 1.05 | 56–64 / 1.05 |
 | Section title (landing) | 30 | 46 |
 | Page title | 26 | 24 (top bar) |
 | Card title | 17 | 17–18 |
