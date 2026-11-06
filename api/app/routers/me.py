@@ -133,10 +133,11 @@ async def update_me(body: ProfileUpdate, profile: CurrentProfile, session: Sessi
 
 def _paystack_error(error: PaystackError) -> ApiError:
     if error.status_code == 429:
-        # Says nothing about the account. Paystack's test mode allows 3 checks of real banks a day (test bank 001 is free).
+        # Says nothing about the account. Paystack's test mode allows 3 checks of real banks a day.
         log.warning("Paystack limit reached: %s", error.message)
         return ApiError(429, "BANK_CHECK_LIMIT", "We've reached the limit for bank checks. Your details may be fine, so try again later.")
     if error.not_sent and error.status_code and error.status_code < 500:
+        log.warning("Paystack refused a bank check: %s", error.message)
         return ApiError(422, "ACCOUNT_NOT_FOUND",
                         "That account number didn't match a bank account. Check the number and the bank.")
     return ApiError(502, "PAYSTACK_UNAVAILABLE", "We couldn't reach the bank check. Try again in a minute.")

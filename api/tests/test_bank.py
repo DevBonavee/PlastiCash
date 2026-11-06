@@ -21,7 +21,6 @@ BODY = {"bank_code": "058", "account_number": "0123456789"}
 @pytest.fixture(autouse=True)
 def mocked_paystack(monkeypatch):
     monkeypatch.setattr(paystack, "_banks_cache", None)
-    monkeypatch.setattr(get_settings(), "paystack_secret_key", "sk_live_abc")  # no test bank in the list
     with respx.mock(assert_all_called=False) as mock:
         mock.get(f"{BASE_URL}/bank").respond(200, json=BANKS)
         yield mock
@@ -52,14 +51,50 @@ async def test_wrong_account_still_says_so(client: AsyncClient, session: AsyncSe
     assert response.json()["code"] == "ACCOUNT_NOT_FOUND"
 
 
-@pytest.mark.parametrize(("key", "offered"), [("sk_test_abc", True), ("sk_live_abc", False)])
-async def test_test_bank_is_only_offered_with_a_test_key(
-    client: AsyncClient, session: AsyncSession, monkeypatch, key: str, offered: bool
+@pytest.mark.parametrize("fake", [True, False])
+async def test_test_bank_is_only_offered_with_fake_transfers(
+    client: AsyncClient, session: AsyncSession, monkeypatch, fake: bool
 ) -> None:
-    monkeypatch.setattr(get_settings(), "paystack_secret_key", key)
+    monkeypatch.setattr(get_settings(), "paystack_fake_transfers", fake)
     user = await make_user(session)
     response = await client.get("/api/v1/banks", headers=bearer(user.id))
-    assert ("001" in [bank["code"] for bank in response.json()]) is offered
+    assert ("001" in [bank["code"] for bank in response.json()]) is fake
+
+
+async def test_test_bank_saves_with_fake_transfers(
+    client: AsyncClient, session: AsyncSession, monkeypatch, mocked_paystack
+) -> None:
+    monkeypatch.setattr(get_settings(), "paystack_fake_transfers", True)
+    mocked_paystack.get(f"{BASE_URL}/bank/resolve").respond(
+        200, json={"status": True, "data": {"account_name": "TEST ACCOUNT 0000000000"}}
+    )
+    # Real Paystack refuses this; the test fails if the API calls it.
+    recipient = mocked_paystack.post(f"{BASE_URL}/transferrecipient").respond(
+        400, json={"status": False, "message": "Cannot resolve account"}
+    )
+    user = await make_user(session)
+    response = await client.post(
+        "/api/v1/me/bank", json={"bank_code": "001", "account_number": "0000000000"}, headers=bearer(user.id)
+    )
+    assert response.status_code == 200
+    assert response.json()["bank"]["account_name"] == "TEST ACCOUNT 0000000000"
+    assert not recipient.called
+    assert user.paystack_recipient_code == paystack.FAKE_RECIPIENT_CODE
+
+
+async def test_without_fake_transfers_a_refused_recipient_is_not_saved(
+    client: AsyncClient, session: AsyncSession, mocked_paystack
+) -> None:
+    mocked_paystack.get(f"{BASE_URL}/bank/resolve").respond(
+        200, json={"status": True, "data": {"account_name": "CHINAZA OKAFOR"}}
+    )
+    mocked_paystack.post(f"{BASE_URL}/transferrecipient").respond(
+        400, json={"status": False, "message": "Cannot resolve account"}
+    )
+    user = await make_user(session)
+    response = await client.post("/api/v1/me/bank", json=BODY, headers=bearer(user.id))
+    assert response.status_code == 422
+    assert user.paystack_recipient_code is None
 
 
 async def test_resolve_shows_the_name_without_saving(client: AsyncClient, session: AsyncSession, mocked_paystack) -> None:

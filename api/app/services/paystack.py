@@ -17,8 +17,10 @@ from app.redis_client import cache_get, cache_set
 BASE_URL = "https://api.paystack.co"
 TIMEOUT = httpx.Timeout(20.0, connect=5.0)
 _BANKS_TTL_SECONDS = 24 * 3600
-# Test keys only: Paystack resolves this bank without counting it against the daily limit on real banks.
+# PAYSTACK_FAKE_TRANSFERS only (local, never with a live key). Paystack resolves this bank without counting it against
+# test mode's 3 real checks a day, but refuses a transfer recipient for it (invalid_bank_code), so the recipient is faked.
 TEST_BANK = {"name": "Test Bank (test mode)", "code": "001"}
+FAKE_RECIPIENT_CODE = "RCP_fake_test_bank"
 _BANKS_CACHE_KEY = "paystack:banks:v2"  # v2: one entry per code
 _banks_cache: tuple[float, list[dict]] | None = None
 
@@ -76,7 +78,7 @@ async def list_banks() -> list[dict]:
         data = await _call("GET", "/bank", params={"country": "nigeria", "currency": "NGN", "perPage": 100})
         banks = _one_choice_per_code([bank for bank in data if bank.get("active", True)])
         await cache_set(_BANKS_CACHE_KEY, banks, _BANKS_TTL_SECONDS)
-    if get_settings().paystack_secret_key.startswith("sk_test") and not any(bank["code"] == TEST_BANK["code"] for bank in banks):
+    if get_settings().paystack_fake_transfers and not any(bank["code"] == TEST_BANK["code"] for bank in banks):
         banks = [TEST_BANK, *banks]
     _banks_cache = (time.monotonic(), banks)
     return banks
@@ -90,6 +92,8 @@ async def resolve_account(account_number: str, bank_code: str) -> str:
 
 async def create_recipient(name: str, account_number: str, bank_code: str) -> str:
     """A transfer recipient for the account; returns recipient_code (RCP_...)."""
+    if get_settings().paystack_fake_transfers and bank_code == TEST_BANK["code"]:
+        return FAKE_RECIPIENT_CODE
     data = await _call(
         "POST",
         "/transferrecipient",
