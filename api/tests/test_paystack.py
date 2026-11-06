@@ -3,6 +3,7 @@ import httpx
 import pytest
 import respx
 
+from app.config import get_settings
 from app.services import paystack
 from app.services.paystack import BASE_URL, PaystackError
 
@@ -10,6 +11,7 @@ from app.services.paystack import BASE_URL, PaystackError
 @pytest.fixture(autouse=True)
 def fresh_bank_cache(monkeypatch):
     monkeypatch.setattr(paystack, "_banks_cache", None)
+    monkeypatch.setattr(get_settings(), "paystack_secret_key", "sk_live_abc")  # no test bank in the list
 
 
 @respx.mock

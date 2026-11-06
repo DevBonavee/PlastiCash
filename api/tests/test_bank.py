@@ -7,6 +7,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models import Profile
 from app.services import paystack
 from app.services.paystack import BASE_URL
+from app.config import get_settings
 from tests.factories import make_user
 from tests.tokens import bearer
 
@@ -20,6 +21,7 @@ BODY = {"bank_code": "058", "account_number": "0123456789"}
 @pytest.fixture(autouse=True)
 def mocked_paystack(monkeypatch):
     monkeypatch.setattr(paystack, "_banks_cache", None)
+    monkeypatch.setattr(get_settings(), "paystack_secret_key", "sk_live_abc")  # no test bank in the list
     with respx.mock(assert_all_called=False) as mock:
         mock.get(f"{BASE_URL}/bank").respond(200, json=BANKS)
         yield mock
@@ -29,6 +31,35 @@ async def test_bank_list(client: AsyncClient, session: AsyncSession) -> None:
     user = await make_user(session)
     response = await client.get("/api/v1/banks", headers=bearer(user.id))
     assert response.json() == [{"name": "Guaranty Trust Bank", "code": "058"}, {"name": "Access Bank", "code": "044"}]
+
+
+async def test_paystack_limit_is_not_reported_as_a_wrong_account(
+    client: AsyncClient, session: AsyncSession, mocked_paystack
+) -> None:
+    message = "Test mode daily limit of 3 live bank resolves exceeded. Use test bank codes 001 or upgrade to live mode."
+    mocked_paystack.get(f"{BASE_URL}/bank/resolve").respond(429, json={"status": False, "message": message})
+    user = await make_user(session)
+    response = await client.post("/api/v1/me/bank/resolve", json=BODY, headers=bearer(user.id))
+    assert response.status_code == 429
+    assert response.json()["code"] == "BANK_CHECK_LIMIT"
+
+
+async def test_wrong_account_still_says_so(client: AsyncClient, session: AsyncSession, mocked_paystack) -> None:
+    mocked_paystack.get(f"{BASE_URL}/bank/resolve").respond(422, json={"status": False, "message": "Could not resolve"})
+    user = await make_user(session)
+    response = await client.post("/api/v1/me/bank/resolve", json=BODY, headers=bearer(user.id))
+    assert response.status_code == 422
+    assert response.json()["code"] == "ACCOUNT_NOT_FOUND"
+
+
+@pytest.mark.parametrize(("key", "offered"), [("sk_test_abc", True), ("sk_live_abc", False)])
+async def test_test_bank_is_only_offered_with_a_test_key(
+    client: AsyncClient, session: AsyncSession, monkeypatch, key: str, offered: bool
+) -> None:
+    monkeypatch.setattr(get_settings(), "paystack_secret_key", key)
+    user = await make_user(session)
+    response = await client.get("/api/v1/banks", headers=bearer(user.id))
+    assert ("001" in [bank["code"] for bank in response.json()]) is offered
 
 
 async def test_resolve_shows_the_name_without_saving(client: AsyncClient, session: AsyncSession, mocked_paystack) -> None:
