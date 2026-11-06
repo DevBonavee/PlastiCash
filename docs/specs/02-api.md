@@ -18,6 +18,7 @@ Base URL: `/api/v1`. JSON in and out. Money in responses is given as both `amoun
 | GET | `/me` | Profile + `display_name` for the greeting |
 | PATCH | `/me` | Update allowed profile fields (incl. the saved pin `lat`, `lng`: both or both null) |
 | GET | `/banks` | Nigerian bank list (proxied from Paystack `GET /bank?country=nigeria`, cached) |
+| POST | `/geocode/reverse` | `{lat, lng}` in the body, to keep them out of access logs. Returns `{street, area}`, either can be null. Street and area at the device's position, for "Use my location" (added 6 Nov 2026). Calls Nominatim from the server under its usage policy: at most 1 request per second across the app, coordinates rounded to 4 decimals, cached 7 days, identifying User-Agent, one lookup per tap. Up to 30 per user per hour. 503 `GEOCODE_UNAVAILABLE` when the service is busy or down |
 | POST | `/me/bank` | `{bank_code, account_number}` → Paystack `/bank/resolve` → shows account_name → create transfer recipient (`type: nuban`, `currency: NGN`) → save |
 
 ## Prices and guide (public)

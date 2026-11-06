@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     termii_sender_id: str = ""
     termii_base_url: str = ""
 
+    # Public server by default; its usage policy limits how we call it (app/services/geocoding.py).
+    nominatim_base_url: str = "https://nominatim.openstreetmap.org"
+    nominatim_user_agent: str = "PlastiCash/1.0 (ops@plasticash.app)"
+
     otp_secret: str = ""
     cron_secret: str = ""
     # Web Push (VAPID) for admin notifications; push is off while the private key is empty.

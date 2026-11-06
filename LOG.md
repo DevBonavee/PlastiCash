@@ -283,3 +283,30 @@ Kenzy decided three conflicts first: the launch screen is the logo on forest gre
   - Logout: before, the caches were the precache (69), `public-pages` (15) and `static-images` (1); after, only the precache. `/app` then redirects to `/login`.
   - The "A new version of PlastiCash is ready" toast also appeared on its own after each rebuild.
 - Fixed the dashboard's "Got another sack ready?" card (`components/app/dashboard.tsx`). On wide screens it sits in the narrow left column, and the "Request a pickup" button squeezed the heading into one word per line. Now the button wraps under the icon and text. Checked at 360, 768, 1024, 1280 and 1536 px: the heading is on one line from 768 up, and the 360 layout is unchanged (the button is hidden there).
+- "Use my current location" reported as not working. Windows location was on, and the site's Permissions-Policy allows it. Causes found:
+  - Every failure showed the same message, so a blocked permission looked the same as a timeout.
+  - The high-accuracy request often runs out its 10 seconds on a laptop with no GPS.
+  - The "new version" update toast can sit over the button on a phone.
+  - New `web/lib/location.ts`, used by the address bar and the request form:
+    - It tries a precise fix first. After a timeout or no fix it retries with network accuracy.
+    - It says which failure happened: blocked in site settings, too slow, no location found, or not on https.
+  - Checked with a granted location (the pin lands) and with faked denied, timeout-then-success and unavailable errors.
+  - OpenStreetMap tiles timed out on this machine's connection during the test. That is the network, not the app.
+
+## 2026-11-06
+
+- Hero photos stopped showing in a browser with the service worker installed (`net::ERR_FAILED` on `res.cloudinary.com`, while curl got 200). `app/sw.ts` sends Cloudinary through `NetworkOnly`, so the worker does the fetch, and a worker's fetch obeys `connect-src`, which only listed `api.cloudinary.com`. Added `https://res.cloudinary.com` in `web/next.config.ts`.
+  - Checked on the dev server with Playwright: with the old worker the two hero images had `naturalWidth` 0; with no worker they loaded; with a new worker carrying the new CSP they load, with no console errors.
+  - A browser keeps the old worker and its old CSP until the worker is replaced. In dev the app does not register workers or show the Refresh toast, so unregister it by hand.
+  - Not checked: the production site.
+- The logo preloader now comes back when a link to another page is clicked, which reverses the 3 Nov choice that it only shows on first load. `components/brand/navigation-preloader.tsx` watches link clicks and sets `<html data-navigating>`; `lib/page-navigation.ts` decides which clicks count. It stays up for at least 400 ms and gives up after 10 s if the link's navigation gets cancelled.
+  - Filters, tabs and anchors on the same pathname don't trigger it, and neither do other sites, new-tab clicks or downloads. `router.push()` after a form has no link click, so it doesn't trigger there either.
+  - Checked: 5 new unit tests, `tsc` and eslint pass. In Playwright on the dev server, public links `/guide`, `/` and `/events` showed the cover and cleared it, a same-page link didn't, and a screenshot shows the logo on the white cover.
+  - Not checked: logged-in pages, the production build, and how the fade looks. The test tab rendered about 1 frame a second.
+- "Use my location" now fills in the street and area as well as dropping the pin, on the address bar and the request form. New `POST /geocode/reverse` (`app/services/geocoding.py`) asks OpenStreetMap's Nominatim from our server. Its usage policy shaped the build: one request at a time with a 1.1 s gap, coordinates rounded to about 11 m with nothing about the user, results cached 7 days in Redis, an identifying User-Agent, and a lookup only on a tap, never on a pin drag. No house number, since at 11 m it can be the neighbour's.
+  - Checked: 18 new API tests. Live lookups with a seeded user: Independence Avenue / Independence Layout, Nwoga Street / Asata, and nothing for a spot in the ocean. In a browser on the dashboard address bar the street and area filled in, and the empty spot left typed text alone. Nothing was saved.
+  - Full API suite: 421 passed, 1 skipped, 1 failed. `test_api_docs_are_off_by_default` fails because the local `api/.env` has `API_DOCS=true`.
+  - Not checked: the request form in a browser (same helper as the address bar), production. The spacing holds in one process, so more API instances would have to share it.
+  - The policy asks for no personal data and says it may change without notice. Decide whether rounded coordinates are acceptable, and move to a paid or self-hosted geocoder if traffic grows (`NOMINATIM_BASE_URL`).
+  - Broke: in GRA the nearest road on OpenStreetMap has no name, so there was no street to fill in and the message read like a failure. The message now names the area it found and says the road is unnamed, and a service failure gets its own message. The first version took coordinates in the query string, which put them in the API's access log, so the route now takes them in a POST body.
+- React's "two children with the same key" errors on `/app/settings`: Paystack's bank list repeats five codes (50572, 50739, 50840, 51253, 100025), and some of those are different banks (51253 is both Stellas MFB and YCT MFB). `paystack.list_banks()` now returns one choice per code, naming both, because a transfer only carries the code. The user still checks the account holder's name before saving. Before the fix, picking the second name on a shared code saved the first bank's name.

@@ -17,6 +17,7 @@ from app.redis_client import cache_get, cache_set
 BASE_URL = "https://api.paystack.co"
 TIMEOUT = httpx.Timeout(20.0, connect=5.0)
 _BANKS_TTL_SECONDS = 24 * 3600
+_BANKS_CACHE_KEY = "paystack:banks:v2"  # v2: one entry per code
 _banks_cache: tuple[float, list[dict]] | None = None
 
 
@@ -51,17 +52,28 @@ async def _call(method: str, path: str, **kwargs: Any) -> Any:
     return body.get("data")
 
 
+def _one_choice_per_code(banks: list[dict]) -> list[dict]:
+    """Paystack lists some codes twice, sometimes for different banks (51253 is both Stellas MFB and YCT MFB). A transfer
+    only carries the code, so those can't be told apart: they become one choice naming both."""
+    names: dict[str, list[str]] = {}
+    for bank in banks:
+        same_code = names.setdefault(bank["code"], [])
+        if bank["name"] not in same_code:
+            same_code.append(bank["name"])
+    return [{"name": " / ".join(bank_names), "code": code} for code, bank_names in names.items()]
+
+
 async def list_banks() -> list[dict]:
-    """Nigerian banks [{name, code}], cached for a day: in this process, and in Redis so a restart (or the free
+    """Nigerian banks [{name, code}], one per code, cached for a day: in this process, and in Redis so a restart (or the free
     plan waking up) doesn't call Paystack again."""
     global _banks_cache
     if _banks_cache and time.monotonic() - _banks_cache[0] < _BANKS_TTL_SECONDS:
         return _banks_cache[1]
-    banks = await cache_get("paystack:banks")
+    banks = await cache_get(_BANKS_CACHE_KEY)
     if banks is None:
         data = await _call("GET", "/bank", params={"country": "nigeria", "currency": "NGN", "perPage": 100})
-        banks = [{"name": bank["name"], "code": bank["code"]} for bank in data if bank.get("active", True)]
-        await cache_set("paystack:banks", banks, _BANKS_TTL_SECONDS)
+        banks = _one_choice_per_code([bank for bank in data if bank.get("active", True)])
+        await cache_set(_BANKS_CACHE_KEY, banks, _BANKS_TTL_SECONDS)
     _banks_cache = (time.monotonic(), banks)
     return banks
 

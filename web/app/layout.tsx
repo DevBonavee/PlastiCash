@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { Suspense } from "react";
 
+import { NavigationPreloader } from "@/components/brand/navigation-preloader";
 import { OfflineBanner } from "@/components/brand/offline-banner";
 import { Preloader } from "@/components/brand/preloader";
 import { PreloaderDone } from "@/components/brand/preloader-done";
@@ -81,6 +83,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {/* After next-themes' inline script, so data-theme is already set when this paints. */}
           <Preloader />
           <PreloaderDone />
+          {/* Suspense: usePathname can wait on the URL on routes with params unknown at build time (Cache Components). */}
+          <Suspense fallback={null}>
+            <NavigationPreloader />
+          </Suspense>
           <PwaProvider>
             <OfflineBanner />
             {children}

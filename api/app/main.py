@@ -4,8 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.errors import install_error_handlers
 from app.routers import (
-    admin, admin_content, admin_ops, collector, content, guardian, jobs, me, pickups, prices, push, unsubscribe, wallet,
-    webhooks,
+    admin, admin_content, admin_ops, collector, content, geocode, guardian, jobs, me, pickups, prices, push, unsubscribe,
+    wallet, webhooks,
 )
 
 docs = get_settings().api_docs
@@ -52,6 +52,7 @@ async def health() -> dict:
 
 
 api.include_router(me.router)
+api.include_router(geocode.router)
 api.include_router(prices.router)
 api.include_router(pickups.router)
 api.include_router(collector.router)

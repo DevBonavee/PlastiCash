@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { createPickup, updateProfile } from "@/lib/actions";
 import { AREAS } from "@/lib/areas";
 import { kg, WINDOW_LABEL } from "@/lib/format";
+import { addressAt, currentLocation } from "@/lib/location";
 import { HUB } from "@/lib/site";
 import { MATERIALS, type CurrentPrice, type Estimate, type Material } from "@/lib/types";
 import { photo as resized, uploadPhoto } from "@/lib/upload";
@@ -53,6 +54,7 @@ export function RequestForm({
   const [pin, setPin] = useState<[number, number]>(
     defaults.lat !== null && defaults.lng !== null ? [defaults.lat, defaults.lng] : ENUGU,
   );
+  const [locating, setLocating] = useState(false);
   const [saveDefault, setSaveDefault] = useState(false);
   const [address, setAddress] = useState(defaults.address);
   const [area, setArea] = useState(defaults.area);
@@ -128,13 +130,18 @@ export function RequestForm({
     }
   }
 
-  function useMyLocation() {
-    if (!navigator.geolocation) return toast.error("Your phone didn't share a location. Drag the pin instead.");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setPin([pos.coords.latitude, pos.coords.longitude]),
-      () => toast.error("We couldn't get your location. Drag the pin to your gate instead."),
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
+  async function useMyLocation() {
+    setLocating(true);
+    const result = await currentLocation();
+    if (!result.ok) {
+      setLocating(false);
+      return toast.error(result.message);
+    }
+    setPin([result.lat, result.lng]);
+    const place = await addressAt(result.lat, result.lng);
+    setLocating(false);
+    if (place.street) setAddress(place.street);
+    if (place.area) setArea(place.area);
   }
 
   const canNext = [
@@ -328,8 +335,8 @@ export function RequestForm({
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <Label>Pin your gate</Label>
-                <button type="button" onClick={useMyLocation} className="flex items-center gap-1.5 text-sm font-bold text-primary">
-                  <LocateFixed className="size-4" aria-hidden /> Use my location
+                <button type="button" onClick={useMyLocation} disabled={locating} className="flex items-center gap-1.5 text-sm font-bold text-primary disabled:opacity-60">
+                  <LocateFixed className="size-4" aria-hidden /> {locating ? "Finding you…" : "Use my location"}
                 </button>
               </div>
               <PinPicker value={pin} onChange={(lat, lng) => setPin([lat, lng])} />

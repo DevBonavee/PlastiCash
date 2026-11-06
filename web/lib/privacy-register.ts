@@ -39,9 +39,9 @@ export const ACTIVITIES: Activity[] = [
     what: "Street address, area, and a map pin if you add one.",
     why: "So a collector comes to the right gate, and so we can group pickups by area.",
     basis: "Contract",
-    shared: "Supabase, Render. The map loads from OpenStreetMap, which sees roughly which area is on screen but not your address.",
-    kept: "Your saved address until you change it. Copies on past pickups: to be confirmed.", // TODO: confirm with Kenzy
-    control: "Change it, or remove the pin, from the address bar on your dashboard.",
+    shared: "Supabase, Render. The map loads from OpenStreetMap, which sees roughly which area is on screen but not your address. If you tap \"Use my location\", our server sends OpenStreetMap the spot, rounded to about 11 metres and without your name or account, to look up the street.",
+    kept: "Your saved address until you change it. Copies on past pickups: to be confirmed. Street lookups are cached for 7 days without your name or account.", // TODO: confirm with Kenzy
+    control: "Change it, or remove the pin, from the address bar on your dashboard. To skip the street lookup, type your address and drag the pin instead of tapping \"Use my location\".",
   },
   {
     id: "age",

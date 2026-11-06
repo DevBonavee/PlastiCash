@@ -68,6 +68,12 @@ export async function updateProfile(body: Record<string, string | number | boole
   return call<{ display_name: string }>("/me", "PATCH", body);
 }
 
+export type ReverseGeocode = { street: string | null; area: string | null };
+
+export async function reverseGeocode(lat: number, lng: number) {
+  return call<ReverseGeocode>("/geocode/reverse", "POST", { lat, lng });
+}
+
 // ----- Collector -----
 
 export async function startTrip(id: string) {

@@ -368,3 +368,13 @@ class ImpactOut(BaseModel):
     earned_kobo: int
     earned_points: Decimal
     by_material: list[MaterialImpact]
+
+
+class ReverseGeocodeIn(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+class ReverseGeocodeOut(BaseModel):
+    street: str | None
+    area: str | None  # one of AREAS, or None when the place isn't on our list

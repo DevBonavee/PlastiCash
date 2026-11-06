@@ -117,7 +117,7 @@ export default function PrivacyPage() {
           <p>
             Our database and logins are with Supabase in the EU (Ireland), and our server runs on Render in Frankfurt.
             Photos are stored with Cloudinary. Paystack (Nigeria) checks bank accounts and sends payouts, Termii sends SMS,
-            Resend sends email, and Vercel hosts the website. These companies process data for us under their own
+            Resend sends email, OpenStreetMap provides the map and street lookup, and Vercel hosts the website. These companies process data for us under their own
             security terms. Sending data outside Nigeria is allowed under the NDPA when the destination protects it
             adequately.
           </p>

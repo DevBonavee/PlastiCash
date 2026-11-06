@@ -1,7 +1,7 @@
-// First-load preloader: the PlastiCash mark centred on the page background, nothing else. Its markup and CSS are inline
-// in the root layout's HTML, so it paints before any script or stylesheet arrives. PreloaderDone (client) marks
-// <html data-loaded> after React's first render, which fades it out; it never comes back on in-app navigation because
-// the root layout doesn't remount. Without JavaScript it fades by itself after 4 s.
+// Preloader: the PlastiCash mark centred on the page background, nothing else. Its markup and CSS are inline in the root
+// layout's HTML, so it paints before any script or stylesheet arrives. PreloaderDone (client) marks <html data-loaded>
+// after React's first render, which fades it out. NavigationPreloader (client) brings it back with <html data-navigating>
+// when a link to another page is clicked. Without JavaScript it fades by itself after 4 s.
 // Background follows the theme next-themes sets before paint: white, or the dark canvas in dark mode. Its pre-paint
 // script writes "dark" (React later maps it to "plasticash-dark"), so both are matched.
 
@@ -10,7 +10,8 @@ const css = `
 transition:opacity .3s ease,visibility 0s linear .3s;animation:pc-pre-out .3s ease 4s forwards}
 [data-theme="plasticash-dark"] #pc-preloader,[data-theme="dark"] #pc-preloader{background:#0B1410}
 @media (prefers-color-scheme:dark){html:not([data-theme]) #pc-preloader{background:#0B1410}}
-[data-loaded] #pc-preloader{opacity:0;visibility:hidden;pointer-events:none}
+[data-loaded] #pc-preloader{opacity:0;visibility:hidden;pointer-events:none;animation:none}
+[data-loaded][data-navigating] #pc-preloader{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .12s ease}
 #pc-preloader svg{width:72px;height:72px}
 @media (prefers-reduced-motion:no-preference){#pc-preloader svg{animation:pc-pre-pulse 1.4s ease-in-out infinite}}
 @keyframes pc-pre-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.92);opacity:.8}}

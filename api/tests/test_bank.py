@@ -72,3 +72,17 @@ async def test_unknown_account_is_a_clear_error(client: AsyncClient, session: As
 async def test_bank_validation(client: AsyncClient, session: AsyncSession, body) -> None:
     user = await make_user(session)
     assert (await client.post("/api/v1/me/bank/resolve", json=body, headers=bearer(user.id))).status_code == 422
+
+
+async def test_banks_sharing_a_code_become_one_choice(client: AsyncClient, session: AsyncSession, mocked_paystack) -> None:
+    # Paystack lists different banks under one code, and the code is all a transfer uses, so the list offers one choice
+    # naming both. The user checks the account holder's name before saving.
+    mocked_paystack.get(f"{BASE_URL}/bank").respond(200, json={"status": True, "data": [
+        {"name": "Stellas MFB", "code": "51253", "active": True},
+        {"name": "Access Bank", "code": "044", "active": True},
+        {"name": "YCT MFB", "code": "51253", "active": True},
+        {"name": "Access Bank", "code": "044", "active": True},
+    ]})
+    user = await make_user(session)
+    response = await client.get("/api/v1/banks", headers=bearer(user.id))
+    assert response.json() == [{"name": "Stellas MFB / YCT MFB", "code": "51253"}, {"name": "Access Bank", "code": "044"}]

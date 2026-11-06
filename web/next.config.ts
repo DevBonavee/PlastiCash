@@ -26,6 +26,8 @@ const csp = [
     supabase,
     supabase.replace(/^http/, "ws"),
     "https://api.cloudinary.com",
+    // The service worker fetches photos itself (NetworkOnly in app/sw.ts), and a worker's fetch obeys connect-src, not img-src.
+    "https://res.cloudinary.com",
     posthog,
     posthog === posthogAssets ? "" : posthogAssets,
     dev ? "ws:" : "",

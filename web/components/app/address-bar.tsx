@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateProfile } from "@/lib/actions";
 import { AREAS } from "@/lib/areas";
+import { addressAt, currentLocation } from "@/lib/location";
 import type { Me } from "@/lib/me";
 import { LAPTOP, useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
@@ -92,20 +93,18 @@ function AddressEditor({ saved, onSaved }: { saved: Saved; onSaved: () => void }
   const [locating, setLocating] = useState(false);
   const [pending, setPending] = useState(false);
 
-  function useMyLocation() {
-    if (!navigator.geolocation) return toast.error("Your phone didn't share a location. Type the street instead.");
+  async function useMyLocation() {
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocating(false);
-        setPin([pos.coords.latitude, pos.coords.longitude]);
-      },
-      () => {
-        setLocating(false);
-        toast.error("We couldn't get your location. Check the location permission, or type the street.");
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
+    const result = await currentLocation();
+    if (!result.ok) {
+      setLocating(false);
+      return toast.error(result.message);
+    }
+    setPin([result.lat, result.lng]);
+    const place = await addressAt(result.lat, result.lng);
+    setLocating(false);
+    if (place.street) setAddress(place.street);
+    if (place.area) setArea(place.area);
   }
 
   async function save(event: FormEvent) {
