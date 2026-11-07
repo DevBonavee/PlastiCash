@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 
 import { Logo } from "@/components/brand/logo";
+import { CookieSettingsLink } from "@/components/consent/cookie-settings-link";
 import { ThemeToggle } from "@/components/brand/theme";
 import { PhotoCarousel, WELCOME_SLIDES } from "@/components/brand/photo-carousel";
 import { getHeroSlides } from "@/lib/content";
@@ -31,7 +32,7 @@ export function AuthCard({ title, description, children, footer, step }: Props) 
 
       {/* Phone header */}
       <div
-        className="relative flex h-44 shrink-0 items-start px-4 pt-6 lg:hidden"
+        className="relative flex h-28 shrink-0 items-start px-4 pt-4 lg:hidden"
         style={{ background: "linear-gradient(160deg, #052E16 10%, #166534)" }}
       >
         <Link href="/" aria-label="PlastiCash home">
@@ -40,7 +41,7 @@ export function AuthCard({ title, description, children, footer, step }: Props) 
         <ThemeToggle dark className="ml-auto" />
       </div>
 
-      <main className="relative -mt-9 flex flex-1 flex-col gap-5 rounded-t-[28px] bg-canvas px-4 pt-7 pb-10 lg:mt-0 lg:rounded-none lg:bg-card lg:px-[72px] lg:pt-10">
+      <main className="relative -mt-9 flex flex-1 flex-col gap-5 rounded-t-[28px] bg-canvas px-4 pt-6 pb-6 lg:mt-0 lg:rounded-none lg:bg-card lg:px-[72px] lg:pt-6">
         <div className="hidden items-center justify-between lg:flex">
           <Link href="/" aria-label="PlastiCash home">
             <Logo size={38} />
@@ -48,13 +49,13 @@ export function AuthCard({ title, description, children, footer, step }: Props) 
           <ThemeToggle />
         </div>
 
-        <div className="mx-auto flex w-full max-w-[440px] flex-col gap-6 lg:mt-10">
+        <div className="mx-auto flex w-full max-w-[440px] flex-col gap-4 lg:mt-4">
           {step && (
-            <div>
-              <span className="eyebrow text-primary">
+            <div className="flex items-center gap-3">
+              <span className="eyebrow shrink-0 text-primary">
                 Step {step.current} of {step.total}
               </span>
-              <div className="mt-2 flex gap-1.5" aria-hidden>
+              <div className="flex flex-1 gap-1.5" aria-hidden>
                 {Array.from({ length: step.total }, (_, i) => (
                   <i key={i} className={cn("h-[5px] flex-1 rounded-full", i < step.current ? "bg-primary" : "bg-border")} />
                 ))}
@@ -68,7 +69,18 @@ export function AuthCard({ title, description, children, footer, step }: Props) 
             <p className="mt-2 text-[15px] text-muted-foreground">{description}</p>
           </div>
           {children}
-          <p className="border-t border-border pt-5 text-center text-sm text-muted-foreground">{footer}</p>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t border-border pt-4 text-[11px] text-muted-foreground min-[360px]:text-xs lg:gap-x-4">
+            <div className="whitespace-nowrap lg:text-sm">{footer}</div>
+            <span className="whitespace-nowrap">
+              <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+                Privacy
+              </Link>{" "}
+              and{" "}
+              <CookieSettingsLink className="underline underline-offset-2 hover:text-foreground">
+                Cookies<span className="sr-only"> settings</span>
+              </CookieSettingsLink>
+            </span>
+          </div>
         </div>
       </main>
     </div>
